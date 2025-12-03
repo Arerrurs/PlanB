@@ -1,0 +1,2469 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Планировщик дня</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --primary: #2563eb;
+      --primary-soft: #dbeafe;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --danger: #ef4444;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f3f4f6;
+      color: var(--text);
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+
+    header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+    }
+
+    .logo {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button, input, select, textarea {
+      font-family: inherit;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      background: #e5e7eb;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: #e5e7eb;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .pill {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .main {
+      padding: 12px 12px 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* ====== AUTH ====== */
+
+    .auth-card {
+      margin: auto;
+      width: 100%;
+      max-width: 360px;
+      background: white;
+      border-radius: var(--radius-lg);
+      padding: 20px 16px 16px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .auth-title {
+      font-weight: 600;
+      font-size: 18px;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .auth-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .field label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary-soft);
+    }
+
+    .auth-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+    }
+
+    .auth-actions .btn {
+      flex: 1;
+      justify-content: center;
+    }
+
+    .auth-note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .error {
+      font-size: 12px;
+      color: var(--danger);
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    /* ====== DATE & CONTROLS ====== */
+
+    .date-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .date-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .date-display {
+      font-weight: 500;
+      font-size: 15px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #f3f4f6;
+    }
+
+    .date-row-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ====== SETTINGS PANEL ====== */
+
+    .settings-panel {
+      margin-top: 8px;
+      padding: 8px 10px 10px;
+      border-radius: 12px;
+      background: #f9fafb;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .settings-panel .field-row {
+      align-items: flex-end;
+    }
+
+    .settings-hint {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ====== CALENDAR ====== */
+
+    .calendar-card {
+      margin-top: 8px;
+      padding: 8px 10px 10px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .calendar-header-title {
+      font-weight: 500;
+    }
+
+    .calendar-nav-btn {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 0 4px;
+      color: var(--muted);
+    }
+
+    .calendar-weekdays,
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+
+    .calendar-weekday {
+      font-size: 11px;
+      text-align: center;
+      color: var(--muted);
+      padding: 2px 0;
+    }
+
+    .calendar-filter-row {
+      margin: 4px 0 2px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .calendar-filter-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+    }
+
+    .calendar-filter-row input[type="checkbox"] {
+      width: 10px;
+      height: 10px;
+    }
+
+    .calendar-day {
+      font-size: 13px;
+      text-align: center;
+      padding: 4px 0 6px;
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .calendar-day.other-month {
+      color: #d1d5db;
+      cursor: default;
+    }
+
+    .calendar-day.today {
+      border: 1px solid var(--primary);
+      font-weight: 600;
+    }
+
+    .calendar-day.selected {
+      background: #dbeafe;
+      box-shadow: 0 0 0 1px #bfdbfe;
+    }
+
+    .calendar-day.has-tasks {
+      background: #f1f5f9;
+    }
+
+    .calendar-dots {
+      display: flex;
+      justify-content: center;
+      gap: 2px;
+      margin-top: 2px;
+    }
+
+    .calendar-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+    }
+
+    .calendar-dot.blue { background: #2563eb; }
+    .calendar-dot.green { background: #16a34a; }
+    .calendar-dot.yellow { background: #eab308; }
+    .calendar-dot.red { background: #ef4444; }
+    .calendar-dot.purple { background: #8b5cf6; }
+
+    /* ====== TRACKER ====== */
+
+    .tracker-card {
+      margin-top: 8px;
+      padding: 8px 10px 10px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-soft);
+      font-size: 13px;
+    }
+
+    .tracker-header {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .tracker-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .tracker-weekdays span {
+      text-align: center;
+    }
+
+    .tracker-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px dashed #e5e7eb;
+    }
+
+    .tracker-row:last-child {
+      border-bottom: none;
+    }
+
+    .tracker-row-title {
+      flex: 0 0 45%;
+      font-size: 13px;
+    }
+
+    .tracker-row-dots {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      justify-items: center;
+    }
+
+    .tracker-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid #cbd5f5;
+      background: transparent;
+    }
+
+    .tracker-dot.completed {
+      background: #4ade80;
+      border-color: #16a34a;
+    }
+
+    /* ====== ARCHIVE ====== */
+
+    .archive-card {
+      margin-top: 8px;
+      padding: 8px 10px 10px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-soft);
+      font-size: 13px;
+    }
+
+    .archive-header {
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .archive-list {
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .archive-row {
+      padding: 6px 0;
+      border-bottom: 1px dashed #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .archive-row:last-child {
+      border-bottom: none;
+    }
+
+    .archive-row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .archive-title {
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .archive-meta {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .archive-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .archive-actions button {
+      border-radius: 999px;
+      border: none;
+      font-size: 11px;
+      padding: 2px 6px;
+      cursor: pointer;
+      background: #e5e7eb;
+    }
+
+    .archive-actions .delete {
+      background: rgba(239, 68, 68, 0.15);
+      color: #b91c1c;
+    }
+
+    .archive-color-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      margin-right: 4px;
+      display: inline-block;
+    }
+
+    .archive-color-blue { background: #2563eb; }
+    .archive-color-green { background: #16a34a; }
+    .archive-color-yellow { background: #eab308; }
+    .archive-color-red { background: #ef4444; }
+    .archive-color-purple { background: #8b5cf6; }
+
+    /* ====== ALL-DAY TASKS ====== */
+
+    .allday-card {
+      margin-top: 8px;
+      padding: 8px 10px 8px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-soft);
+      font-size: 13px;
+    }
+
+    .allday-header {
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .allday-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .allday-pill {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 6px 8px;
+      border-radius: 12px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 12px;
+      border: 1px solid #dbeafe;
+      cursor: pointer;
+    }
+
+    .allday-pill.completed {
+      background: #f9fafb;
+      color: #9ca3af;
+      border-style: dashed;
+    }
+
+    .allday-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .allday-title {
+      max-width: 220px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+
+    .allday-desc {
+      font-size: 11px;
+      color: var(--muted);
+      max-height: 2.4em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .allday-actions {
+      display: inline-flex;
+      gap: 2px;
+    }
+
+    .allday-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 1px 6px;
+      font-size: 10px;
+      cursor: pointer;
+      background: rgba(148, 163, 184, 0.2);
+      color: #4b5563;
+    }
+
+    .allday-btn.done {
+      background: rgba(34, 197, 94, 0.15);
+      color: #15803d;
+    }
+
+    .allday-btn.delete {
+      background: rgba(239, 68, 68, 0.15);
+      color: #b91c1c;
+    }
+
+    .allday-btn.return {
+      background: rgba(59, 130, 246, 0.15);
+      color: #1d4ed8;
+    }
+
+    /* Цвета all-day */
+    .allday-pill.color-blue {
+      background: #dbeafe;
+      border-color: #bfdbfe;
+      color: #1d4ed8;
+    }
+    .allday-pill.color-green {
+      background: #dcfce7;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+    .allday-pill.color-yellow {
+      background: #fef9c3;
+      border-color: #fef08a;
+      color: #854d0e;
+    }
+    .allday-pill.color-red {
+      background: #fee2e2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+    .allday-pill.color-purple {
+      background: #ede9fe;
+      border-color: #ddd6fe;
+      color: #5b21b6;
+    }
+
+    /* ====== TIMELINE ====== */
+
+    .timeline-card {
+      margin-top: 4px;
+      flex: 1;
+      background: white;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      padding: 8px 8px 12px;
+      box-shadow: var(--shadow-soft);
+      display: flex;
+      flex-direction: column;
+      min-height: 60vh;
+      overflow: hidden;
+    }
+
+    .timeline-container {
+      position: relative;
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      height: 100%;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .time-scale {
+      border-right: 1px solid var(--border);
+      padding-top: 8px;
+    }
+
+    .time-slot {
+      height: var(--slot-height);
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding-right: 4px;
+    }
+
+    .time-slot-label {
+      position: sticky;
+      top: 0;
+    }
+
+    .time-track {
+      position: relative;
+      padding-top: 8px;
+    }
+
+    .time-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 0;
+      border-top: 1px dashed #e5e7eb;
+      pointer-events: none;
+    }
+
+    .time-line.hour {
+      border-top-style: solid;
+    }
+
+    .now-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 0;
+      border-top: 2px solid rgba(248,113,113,0.95);
+      box-shadow: 0 0 4px rgba(248,113,113,0.8);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* ====== TASKS ====== */
+
+    .task-block {
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      border-radius: var(--radius-md);
+      background: var(--primary-soft);
+      color: #1e40af;
+      padding: 6px 8px 8px;
+      font-size: 13px;
+      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+      cursor: grab;
+      touch-action: none;
+      transition: box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    .task-block:active {
+      cursor: grabbing;
+    }
+
+    .task-block.dragging {
+      transform: scale(1.03);
+      box-shadow: 0 14px 35px rgba(15, 23, 42, 0.45);
+      opacity: 0.95;
+      z-index: 5;
+    }
+
+    .task-block.completed {
+      background: #f9fafb !important;
+      color: #9ca3af !important;
+      box-shadow: none;
+      border: 1px dashed #d1d5db;
+    }
+
+    .task-block.completed .task-time {
+      color: #9ca3af;
+    }
+
+    .task-title {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    .task-time {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .task-desc {
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .task-status {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 2px;
+      font-style: italic;
+    }
+
+    .task-actions {
+      margin-top: 4px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .task-actions button {
+      border-radius: 999px;
+      border: none;
+      font-size: 10px;
+      padding: 2px 6px;
+      background: rgba(148, 163, 184, 0.2);
+      color: #4b5563;
+      cursor: pointer;
+    }
+
+    .task-actions button.delete {
+      background: rgba(239, 68, 68, 0.15);
+      color: #b91c1c;
+    }
+
+    .task-actions button.done {
+      background: rgba(34, 197, 94, 0.15);
+      color: #15803d;
+    }
+
+    .task-actions button.return {
+      background: rgba(59, 130, 246, 0.15);
+      color: #1d4ed8;
+    }
+
+    .task-block.color-blue {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .task-block.color-green {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .task-block.color-yellow {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    .task-block.color-red {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .task-block.color-purple {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+
+    /* ====== FAB ====== */
+
+    .fab {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: 52px;
+      height: 52px;
+      border-radius: 999px;
+      border: none;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 30px rgba(37, 99, 235, 0.6);
+      font-size: 26px;
+      cursor: pointer;
+      z-index: 20;
+    }
+
+    @media (min-width: 640px) {
+      .fab {
+        right: calc(50% - 240px + 16px);
+      }
+    }
+
+    /* ====== MODAL ====== */
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.4);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 30;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 480px;
+      background: white;
+      border-radius: 18px 18px 0 0;
+      padding: 14px 16px 16px;
+      box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.2);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .modal-title {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .modal-close {
+      border: none;
+      background: none;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    .modal-footer {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .modal-footer .btn {
+      flex: 1;
+      justify-content: center;
+    }
+
+    .field-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .field-row .field {
+      flex: 1;
+      margin-bottom: 0;
+    }
+
+    .expected-end-text {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ====== REPEAT CALENDAR IN MODAL ====== */
+
+    .repeat-calendar {
+      margin-top: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 6px 8px 8px;
+      font-size: 11px;
+    }
+
+    .repeat-cal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .repeat-cal-title {
+      font-weight: 500;
+    }
+
+    .repeat-cal-nav-btn {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0 4px;
+      color: var(--muted);
+    }
+
+    .repeat-cal-weekdays,
+    .repeat-cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+
+    .repeat-cal-weekday {
+      text-align: center;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .repeat-cal-day {
+      text-align: center;
+      padding: 3px 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .repeat-cal-day.selected {
+      background: #bfdbfe;
+      font-weight: 600;
+    }
+
+    .repeat-cal-day.base-date {
+      border: 1px solid var(--primary);
+    }
+
+  </style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <div class="logo">Планировщик</div>
+    <div class="header-right" id="headerUser"></div>
+  </header>
+
+  <main class="main" id="main"></main>
+
+  <!-- Кнопка добавления задачи -->
+  <button class="fab" id="fabAdd">+</button>
+
+  <!-- Модалка задачи -->
+  <div class="modal-backdrop" id="taskModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="taskModalTitle">Новая задача</div>
+        <button class="modal-close" id="taskModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="taskTitle">Название</label>
+          <input id="taskTitle" type="text" placeholder="Например, «Лекция по матану»" list="taskTitlesList" />
+          <datalist id="taskTitlesList"></datalist>
+        </div>
+        <div class="field">
+          <label for="taskDesc">Описание</label>
+          <textarea id="taskDesc" rows="2" placeholder="Опционально"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="taskDate">Дата</label>
+            <input id="taskDate" type="date" />
+          </div>
+          <div class="field">
+            <label for="taskTime">Время начала</label>
+            <input id="taskTime" type="time" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="taskDuration">Длительность (мин)</label>
+            <input id="taskDuration" type="number" min="5" step="5" value="60" />
+          </div>
+          <div class="field">
+            <label for="taskColor">Цвет</label>
+            <select id="taskColor">
+              <option value="blue">Синий</option>
+              <option value="green">Зелёный</option>
+              <option value="yellow">Жёлтый</option>
+              <option value="red">Красный</option>
+              <option value="purple">Фиолетовый</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>
+            <input type="checkbox" id="taskAllDay" />
+            Задача на весь день
+          </label>
+          <div class="settings-hint">
+            Если включено, время и длительность игнорируются, задача будет отображаться как «на весь день».
+          </div>
+        </div>
+
+        <div class="expected-end-text" id="taskExpectedEnd"></div>
+
+        <div class="field">
+          <label>Повторение задачи</label>
+          <div class="settings-hint">Отметь дополнительные дни, когда эту задачу нужно повторить.</div>
+          <div class="repeat-calendar" id="repeatCalendar"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="taskModalCancel">Отмена</button>
+        <button class="btn btn-primary" id="taskModalSave">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ================== УТИЛИТЫ ДАТЫ ==================
+  function formatDateTitle(date) {
+    const d = new Date(date);
+    const fmt = d.toLocaleDateString('ru-RU', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    });
+    return fmt.replace('.', '');
+  }
+
+  function formatMonthTitle(date) {
+    const mNames = [
+      'Январь','Февраль','Март','Апрель','Май','Июнь',
+      'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'
+    ];
+    const d = new Date(date);
+    return `${mNames[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  function toDateInputValue(date) {
+    const d = new Date(date);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+
+  function fromDateInputValue(val) {
+    return new Date(val + 'T00:00:00');
+  }
+
+  function minutesToTimeStr(mins) {
+    mins = Math.max(0, mins);
+    const h = Math.floor(mins / 60) % 24;
+    const m = mins % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  function timeStrToMinutes(str) {
+    const [h, m] = str.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function getCurrentWeekDateKeys() {
+    const today = new Date();
+    const dow = (today.getDay() + 6) % 7; // Пн=0
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dow);
+    weekStart.setHours(0,0,0,0);
+    const result = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      result.push(toDateInputValue(d));
+    }
+    return result;
+  }
+
+  // ================== ХРАНИЛИЩЕ (localStorage) ==================
+  const STORAGE_USERS_KEY = 'planner_users';
+  const STORAGE_CURRENT_USER_KEY = 'planner_current_user';
+  const STORAGE_TASKS_PREFIX = 'planner_tasks_';
+  const STORAGE_SETTINGS_PREFIX = 'planner_settings_';
+
+  function loadUsers() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_USERS_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  function saveUsers(users) {
+    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(users));
+  }
+
+  function getCurrentUser() {
+    return localStorage.getItem(STORAGE_CURRENT_USER_KEY);
+  }
+
+  function setCurrentUser(username) {
+    if (username) {
+      localStorage.setItem(STORAGE_CURRENT_USER_KEY, username);
+    } else {
+      localStorage.removeItem(STORAGE_CURRENT_USER_KEY);
+    }
+  }
+
+  function getUserTasks(username) {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_TASKS_PREFIX + username) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  function saveUserTasks(username, tasks) {
+    localStorage.setItem(STORAGE_TASKS_PREFIX + username, JSON.stringify(tasks));
+  }
+
+  function getUserSettings(username) {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_SETTINGS_PREFIX + username) || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  function saveUserSettings(username, settings) {
+    localStorage.setItem(STORAGE_SETTINGS_PREFIX + username, JSON.stringify(settings));
+  }
+
+  // ================== AUTH ==================
+  const appMain = document.getElementById('main');
+  const headerUser = document.getElementById('headerUser');
+
+  function renderAuthScreen() {
+    const users = loadUsers();
+    const usernames = Object.keys(users);
+
+    headerUser.innerHTML = '';
+
+    appMain.innerHTML = `
+      <div class="auth-card">
+        <div class="auth-title">Вход или регистрация</div>
+        <div class="auth-subtitle">Создайте простой логин, браузер запомнит вас и ваши задачи.</div>
+        <div class="error" id="authError"></div>
+        <div class="field">
+          <label for="authLogin">Логин</label>
+          <input id="authLogin" type="text" placeholder="Например, antonio" />
+        </div>
+        <div class="field">
+          <label for="authPassword">Пароль</label>
+          <input id="authPassword" type="password" placeholder="******" />
+        </div>
+        ${usernames.length ? `
+          <div class="field">
+            <label>Существующие пользователи (на этом устройстве)</label>
+            <select id="authExisting">
+              <option value="">— не выбрано —</option>
+              ${usernames.map(u => `<option value="${u}">${u}</option>`).join('')}
+            </select>
+          </div>
+        ` : ''}
+        <div class="auth-actions">
+          <button class="btn" id="btnLogin">Войти</button>
+          <button class="btn btn-primary" id="btnRegister">Зарегистрироваться</button>
+        </div>
+        <div class="auth-note">
+          Все данные хранятся только в этом браузере.
+        </div>
+      </div>
+   `;
+
+    const loginInput = document.getElementById('authLogin');
+    const passInput = document.getElementById('authPassword');
+    const existing = document.getElementById('authExisting');
+    const authError = document.getElementById('authError');
+
+    if (existing) {
+      existing.addEventListener('change', () => {
+        const u = existing.value;
+        if (u) loginInput.value = u;
+      });
+    }
+
+    document.getElementById('btnLogin').onclick = () => {
+      authError.textContent = '';
+      const login = loginInput.value.trim();
+      const pass = passInput.value;
+      if (!login || !pass) {
+        authError.textContent = 'Введите логин и пароль.';
+        return;
+      }
+      const usersNow = loadUsers();
+      if (!usersNow[login] || usersNow[login].password !== pass) {
+        authError.textContent = 'Неверный логин или пароль.';
+        return;
+      }
+      setCurrentUser(login);
+      renderApp();
+    };
+
+    document.getElementById('btnRegister').onclick = () => {
+      authError.textContent = '';
+      const login = loginInput.value.trim();
+      const pass = passInput.value;
+      if (!login || !pass) {
+        authError.textContent = 'Придумайте логин и пароль.';
+        return;
+      }
+      const usersNow = loadUsers();
+      if (usersNow[login]) {
+        authError.textContent = 'Такой логин уже есть. Попробуйте другой.';
+        return;
+      }
+      usersNow[login] = { password: pass };
+      saveUsers(usersNow);
+      setCurrentUser(login);
+      renderApp();
+    };
+  }
+
+  function renderHeaderUser(username) {
+    if (!username) {
+      headerUser.innerHTML = '';
+      return;
+    }
+    headerUser.innerHTML = `
+      <span class="pill">${username}</span>
+      <button class="btn-icon" id="btnLogout" title="Выйти">⎋</button>
+    `;
+    document.getElementById('btnLogout').onclick = () => {
+      setCurrentUser(null);
+      renderAuthScreen();
+    };
+  }
+
+  // ================== ОСНОВНОЙ ЭКРАН ==================
+  let state = {
+    currentDate: new Date(),
+    slotMinutes: 60,
+    draggingTaskId: null,
+    showSettings: false,
+    showCalendar: false,
+    showTracker: false,
+    showArchive: false,
+    calendarMonthDate: null
+  };
+
+  function renderApp() {
+    const user = getCurrentUser();
+    if (!user) {
+      renderAuthScreen();
+      return;
+    }
+    renderHeaderUser(user);
+
+    const settings = getUserSettings(user) || {};
+    if (settings.slotMinutes) {
+      state.slotMinutes = settings.slotMinutes;
+    } else if (!state.slotMinutes) {
+      state.slotMinutes = 60;
+    }
+
+    const slotMinutes = state.slotMinutes || 60;
+    let visibleStart = (typeof settings.visibleStartMinutes === 'number') ? settings.visibleStartMinutes : 0;
+    let visibleEnd = (typeof settings.visibleEndMinutes === 'number') ? settings.visibleEndMinutes : 24 * 60;
+
+    if (!state.calendarMonthDate) {
+      state.calendarMonthDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
+    }
+
+    const dateStr = formatDateTitle(state.currentDate);
+    const startDisplay = minutesToTimeStr(visibleStart);
+    const endDisplayMinutes = visibleEnd >= 24*60 ? 23*60 + 59 : visibleEnd;
+    const endDisplay = minutesToTimeStr(endDisplayMinutes);
+    const monthTitle = formatMonthTitle(state.calendarMonthDate);
+
+    const calendarColorSettings = settings.visibleCalendarColors || {
+      blue: true, green: true, yellow: true, red: true, purple: true
+    };
+
+    appMain.innerHTML = `
+      <div class="date-row">
+        <div class="date-nav">
+          <button class="btn-icon" id="btnPrevDay">‹</button>
+          <span class="date-display">${dateStr}</span>
+          <button class="btn-icon" id="btnNextDay">›</button>
+        </div>
+        <div class="date-row-right">
+          <button class="btn-icon" id="btnTracker" title="Трекер задач">📊</button>
+          <button class="btn-icon" id="btnArchive" title="Архив задач">🧺</button>
+          <button class="btn-icon" id="btnCalendar" title="Календарь">📅</button>
+          <button class="btn-icon" id="btnSettings" title="Настройки">⚙</button>
+        </div>
+      </div>
+
+      ${state.showCalendar ? `
+        <div class="calendar-card">
+          <div class="calendar-header">
+            <button class="calendar-nav-btn" id="btnCalPrev">‹</button>
+            <div class="calendar-header-title">${monthTitle}</div>
+            <button class="calendar-nav-btn" id="btnCalNext">›</button>
+          </div>
+          <div class="calendar-weekdays">
+            <div class="calendar-weekday">Пн</div>
+            <div class="calendar-weekday">Вт</div>
+            <div class="calendar-weekday">Ср</div>
+            <div class="calendar-weekday">Чт</div>
+            <div class="calendar-weekday">Пт</div>
+            <div class="calendar-weekday">Сб</div>
+            <div class="calendar-weekday">Вс</div>
+          </div>
+          <div class="calendar-filter-row">
+            <span>Метки:</span>
+            <label><input type="checkbox" class="cal-color-filter" data-color="blue" ${calendarColorSettings.blue !== false ? 'checked' : ''}><span class="calendar-dot blue"></span></label>
+            <label><input type="checkbox" class="cal-color-filter" data-color="green" ${calendarColorSettings.green !== false ? 'checked' : ''}><span class="calendar-dot green"></span></label>
+            <label><input type="checkbox" class="cal-color-filter" data-color="yellow" ${calendarColorSettings.yellow !== false ? 'checked' : ''}><span class="calendar-dot yellow"></span></label>
+            <label><input type="checkbox" class="cal-color-filter" data-color="red" ${calendarColorSettings.red !== false ? 'checked' : ''}><span class="calendar-dot red"></span></label>
+            <label><input type="checkbox" class="cal-color-filter" data-color="purple" ${calendarColorSettings.purple !== false ? 'checked' : ''}><span class="calendar-dot purple"></span></label>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+      ` : ''}
+
+      ${state.showTracker ? `
+        <div class="tracker-card">
+          <div class="tracker-header">Трекер задач (текущая неделя)</div>
+          <div class="tracker-weekdays">
+            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+          </div>
+          <div id="trackerBody"></div>
+        </div>
+      ` : ''}
+
+      ${state.showArchive ? `
+        <div class="archive-card">
+          <div class="archive-header">Архив выполненных задач</div>
+          <div class="archive-list" id="archiveList"></div>
+        </div>
+      ` : ''}
+
+      <div class="allday-card" id="alldayCard" style="display:none;">
+        <div class="allday-header">Задачи на весь день</div>
+        <div class="allday-list" id="alldayList"></div>
+      </div>
+
+      ${state.showSettings ? `
+        <div class="settings-panel">
+          <div class="field-row">
+            <div class="field">
+              <label for="slotSelect">Шаг сетки</label>
+              <select id="slotSelect">
+                <option value="15" ${slotMinutes === 15 ? 'selected' : ''}>15 мин</option>
+                <option value="30" ${slotMinutes === 30 ? 'selected' : ''}>30 мин</option>
+                <option value="60" ${slotMinutes === 60 ? 'selected' : ''}>1 час</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="visibleStartTime">Показывать с</label>
+              <input id="visibleStartTime" type="time" value="${startDisplay}" />
+            </div>
+            <div class="field">
+              <label for="visibleEndTime">По</label>
+              <input id="visibleEndTime" type="time" value="${endDisplay}" />
+            </div>
+          </div>
+          <div class="settings-hint">
+            Скрытые часы не показываются на шкале, но задачи в них не удаляются.
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="timeline-card">
+        <div class="timeline-container" id="timelineContainer">
+          <div class="time-scale" id="timeScale"></div>
+          <div class="time-track" id="timeTrack"></div>
+        </div>
+      </div>
+    `;
+
+    // Навигация по дням
+    document.getElementById('btnPrevDay').onclick = () => {
+      const d = new Date(state.currentDate);
+      d.setDate(d.getDate() - 1);
+      state.currentDate = d;
+      state.calendarMonthDate = new Date(d.getFullYear(), d.getMonth(), 1);
+      renderApp();
+    };
+    document.getElementById('btnNextDay').onclick = () => {
+      const d = new Date(state.currentDate);
+      d.setDate(d.getDate() + 1);
+      state.currentDate = d;
+      state.calendarMonthDate = new Date(d.getFullYear(), d.getMonth(), 1);
+      renderApp();
+    };
+
+    // Кнопочки в шапке
+    document.getElementById('btnCalendar').onclick = () => {
+      state.showCalendar = !state.showCalendar;
+      renderApp();
+    };
+    document.getElementById('btnTracker').onclick = () => {
+      state.showTracker = !state.showTracker;
+      renderApp();
+    };
+    document.getElementById('btnArchive').onclick = () => {
+      state.showArchive = !state.showArchive;
+      renderApp();
+    };
+    document.getElementById('btnSettings').onclick = () => {
+      state.showSettings = !state.showSettings;
+      renderApp();
+    };
+
+    if (state.showCalendar) {
+      const btnCalPrev = document.getElementById('btnCalPrev');
+      const btnCalNext = document.getElementById('btnCalNext');
+      btnCalPrev.onclick = () => {
+        const d = new Date(state.calendarMonthDate);
+        d.setMonth(d.getMonth() - 1);
+        state.calendarMonthDate = d;
+        renderApp();
+      };
+      btnCalNext.onclick = () => {
+        const d = new Date(state.calendarMonthDate);
+        d.setMonth(d.getMonth() + 1);
+        state.calendarMonthDate = d;
+        renderApp();
+      };
+      renderCalendar();
+
+      // фильтр цветов календаря
+      document.querySelectorAll('.cal-color-filter').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const color = cb.dataset.color;
+          const userNow = getCurrentUser();
+          if (!userNow) return;
+          const setts = getUserSettings(userNow) || {};
+          const vis = setts.visibleCalendarColors || {
+            blue: true, green: true, yellow: true, red: true, purple: true
+          };
+          vis[color] = cb.checked;
+          setts.visibleCalendarColors = vis;
+          saveUserSettings(userNow, setts);
+          renderCalendar();
+        });
+      });
+    }
+
+    if (state.showSettings) {
+      const slotSelect = document.getElementById('slotSelect');
+      const startInput = document.getElementById('visibleStartTime');
+      const endInput = document.getElementById('visibleEndTime');
+
+      const applySettings = () => {
+        const userNow = getCurrentUser();
+        if (!userNow) return;
+        let slotVal = parseInt(slotSelect.value, 10);
+        if (![15, 30, 60].includes(slotVal)) slotVal = 60;
+        state.slotMinutes = slotVal;
+
+        let vs = timeStrToMinutes(startInput.value || '00:00');
+        let ve = timeStrToMinutes(endInput.value || '23:59');
+        if (ve <= vs + 5) ve = vs + 60;
+        if (ve > 24 * 60) ve = 24 * 60;
+        if (vs < 0) vs = 0;
+
+        const prev = getUserSettings(userNow) || {};
+        const newSettings = {
+          ...prev,
+          slotMinutes: state.slotMinutes,
+          visibleStartMinutes: vs,
+          visibleEndMinutes: ve
+        };
+        saveUserSettings(userNow, newSettings);
+        renderTimeline();
+      };
+
+      slotSelect.onchange = applySettings;
+      startInput.onchange = applySettings;
+      endInput.onchange = applySettings;
+    }
+
+    if (state.showTracker) {
+      renderTracker();
+    }
+    if (state.showArchive) {
+      renderArchive();
+    }
+
+    renderTimeline();
+  }
+
+  function renderCalendar() {
+    const user = getCurrentUser();
+    if (!user) return;
+    const grid = document.getElementById('calendarGrid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    const monthDate = state.calendarMonthDate || new Date();
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const firstWeekday = (firstDay.getDay() + 6) % 7; // Пн=0, Вс=6
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysPrevMonth = new Date(year, month, 0).getDate();
+
+    const tasks = getUserTasks(user);
+    const settings = getUserSettings(user) || {};
+    const visColors = settings.visibleCalendarColors || {
+      blue: true, green: true, yellow: true, red: true, purple: true
+    };
+
+    const colorsByDate = {};
+    for (const t of tasks) {
+      if (t.completed) continue; // выполненные не подсвечиваем в общем календаре
+      const c = t.color || 'blue';
+      if (visColors[c] === false) continue;
+      if (!colorsByDate[t.date]) colorsByDate[t.date] = new Set();
+      colorsByDate[t.date].add(c);
+    }
+
+    const selectedKey = toDateInputValue(state.currentDate);
+    const todayKey = toDateInputValue(new Date());
+    const totalCells = 42;
+
+    for (let i = 0; i < totalCells; i++) {
+      let dayNum, offset;
+      if (i < firstWeekday) {
+        dayNum = daysPrevMonth - firstWeekday + 1 + i;
+        offset = -1;
+      } else if (i >= firstWeekday + daysInMonth) {
+        dayNum = i - firstWeekday - daysInMonth + 1;
+        offset = 1;
+      } else {
+        dayNum = i - firstWeekday + 1;
+        offset = 0;
+      }
+
+      const cellDate = new Date(year, month + offset, dayNum);
+      const dateKey = toDateInputValue(cellDate);
+      const inThisMonth = offset === 0;
+      const isToday = dateKey === todayKey;
+      const isSelected = dateKey === selectedKey;
+      const colorsSet = colorsByDate[dateKey];
+      const hasTasks = !!colorsSet;
+      const colors = colorsSet ? Array.from(colorsSet).slice(0, 3) : [];
+
+      const cell = document.createElement('div');
+      cell.className = 'calendar-day';
+      if (!inThisMonth) cell.classList.add('other-month');
+      if (isToday) cell.classList.add('today');
+      if (isSelected) cell.classList.add('selected');
+      if (hasTasks) cell.classList.add('has-tasks');
+
+      cell.dataset.date = dateKey;
+      cell.innerHTML = `<div>${dayNum}</div>`;
+
+      if (hasTasks) {
+        const dots = document.createElement('div');
+        dots.className = 'calendar-dots';
+        colors.forEach(c => {
+          const dot = document.createElement('span');
+          dot.className = 'calendar-dot ' + c;
+          dots.appendChild(dot);
+        });
+        cell.appendChild(dots);
+      }
+
+      if (inThisMonth) {
+        cell.addEventListener('click', () => {
+          state.currentDate = cellDate;
+          renderApp();
+          state.showCalendar = true; // календарь остаётся открытым
+        });
+      }
+
+      grid.appendChild(cell);
+    }
+  }
+
+  function renderTracker() {
+    const user = getCurrentUser();
+    if (!user) return;
+    const body = document.getElementById('trackerBody');
+    if (!body) return;
+
+    const tasks = getUserTasks(user);
+    const weekDates = getCurrentWeekDateKeys(); // Пн..Вс
+
+    const titlesSet = new Set();
+    for (const t of tasks) {
+      const title = (t.title || 'Без названия').trim();
+      if (title) titlesSet.add(title);
+    }
+
+    const map = {};
+    for (const title of titlesSet) {
+      map[title] = {
+        doneByDow: [false, false, false, false, false, false, false]
+      };
+    }
+
+    for (const t of tasks) {
+      const title = (t.title || 'Без названия').trim();
+      if (!title) continue;
+      const idx = weekDates.indexOf(t.date);
+      if (idx === -1) continue;
+      if (!map[title]) {
+        map[title] = { doneByDow: [false, false, false, false, false, false, false] };
+      }
+      if (t.completed) {
+        map[title].doneByDow[idx] = true;
+      }
+    }
+
+    const entries = Object.entries(map).sort((a, b) => a[0].localeCompare(b[0], 'ru'));
+
+    if (!entries.length) {
+      body.innerHTML = `<div class="settings-hint">Пока нет задач для трекера.</div>`;
+      return;
+    }
+
+    body.innerHTML = '';
+    for (const [title, info] of entries) {
+      const row = document.createElement('div');
+      row.className = 'tracker-row';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'tracker-row-title';
+      titleEl.textContent = title;
+
+      const dotsWrap = document.createElement('div');
+      dotsWrap.className = 'tracker-row-dots';
+
+      for (let i = 0; i < 7; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'tracker-dot';
+        if (info.doneByDow[i]) {
+          dot.classList.add('completed');
+        }
+        dotsWrap.appendChild(dot);
+      }
+
+      row.appendChild(titleEl);
+      row.appendChild(dotsWrap);
+      body.appendChild(row);
+    }
+  }
+
+  function renderArchive() {
+    const user = getCurrentUser();
+    if (!user) return;
+    const listEl = document.getElementById('archiveList');
+    if (!listEl) return;
+
+    const tasks = getUserTasks(user).filter(t => t.completed);
+    tasks.sort((a, b) => {
+      if (a.date === b.date) return a.startMinutes - b.startMinutes;
+      return a.date < b.date ? 1 : -1; // новые выше
+    });
+
+    if (!tasks.length) {
+      listEl.innerHTML = `<div class="settings-hint">Выполненных задач пока нет.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = '';
+
+    for (const t of tasks) {
+      const row = document.createElement('div');
+      row.className = 'archive-row';
+
+      const top = document.createElement('div');
+      top.className = 'archive-row-top';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'archive-title';
+      const colorClass = t.color ? `archive-color-${t.color}` : 'archive-color-blue';
+      titleEl.innerHTML = `<span class="archive-color-dot ${colorClass}"></span>${t.title || 'Без названия'}`;
+
+      const meta = document.createElement('div');
+      meta.className = 'archive-meta';
+      const dateStr = t.date;
+      const endMinutesTotal = t.startMinutes + t.durationMinutes;
+      const endMinutes = endMinutesTotal >= 24*60 ? endMinutesTotal - 24*60 : endMinutesTotal;
+      const timeStr = t.allDay
+        ? 'на весь день'
+        : `${minutesToTimeStr(t.startMinutes)}–${minutesToTimeStr(endMinutes)}`;
+
+      meta.textContent = `${dateStr} • ${timeStr}`;
+
+      top.appendChild(titleEl);
+      top.appendChild(meta);
+      row.appendChild(top);
+
+      if (t.description) {
+        const desc = document.createElement('div');
+        desc.className = 'archive-meta';
+        desc.textContent = t.description;
+        row.appendChild(desc);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'archive-actions';
+
+      const btnRepeat = document.createElement('button');
+      btnRepeat.textContent = 'Повторить';
+      btnRepeat.onclick = () => {
+        openTaskModal(t, { asTemplate: true });
+      };
+
+      const btnDelete = document.createElement('button');
+      btnDelete.textContent = 'Удалить';
+      btnDelete.className = 'delete';
+      btnDelete.onclick = () => {
+        const all = getUserTasks(user);
+        const filtered = all.filter(x => x.id !== t.id);
+        saveUserTasks(user, filtered);
+        renderArchive();
+        renderTimeline();
+        renderTracker();
+        if (state.showCalendar) renderCalendar();
+      };
+
+      actions.appendChild(btnRepeat);
+      actions.appendChild(btnDelete);
+      row.appendChild(actions);
+
+      listEl.appendChild(row);
+    }
+  }
+
+  function renderTimeline() {
+    const user = getCurrentUser();
+    if (!user) return;
+    const tasks = getUserTasks(user);
+    const settings = getUserSettings(user) || {};
+
+    const timeScale = document.getElementById('timeScale');
+    const timeTrack = document.getElementById('timeTrack');
+    const alldayCard = document.getElementById('alldayCard');
+    const alldayList = document.getElementById('alldayList');
+    if (!timeScale || !timeTrack) return;
+
+    const slotMinutes = state.slotMinutes || 60;
+
+    const baseSlotHeight = 36;
+    const slotHeight = baseSlotHeight;
+    const minuteHeight = slotHeight / slotMinutes;
+    const minBlockHeight = 56; // чтобы текст не прилипал к рамке
+
+    document.documentElement.style.setProperty('--slot-height', slotHeight + 'px');
+
+    let visibleStart = (typeof settings.visibleStartMinutes === 'number') ? settings.visibleStartMinutes : 0;
+    let visibleEnd = (typeof settings.visibleEndMinutes === 'number') ? settings.visibleEndMinutes : 24 * 60;
+
+    if (visibleStart < 0) visibleStart = 0;
+    if (visibleEnd > 24 * 60) visibleEnd = 24 * 60;
+    if (visibleEnd <= visibleStart + slotMinutes) visibleEnd = Math.min(visibleStart + slotMinutes, 24 * 60);
+
+    timeScale.innerHTML = '';
+    timeTrack.innerHTML = '';
+
+    const dateKey = toDateInputValue(state.currentDate);
+
+    // Задачи на весь день
+    if (alldayCard && alldayList) {
+      const allDayTasks = tasks.filter(t => t.date === dateKey && t.allDay);
+      if (!allDayTasks.length) {
+        alldayCard.style.display = 'none';
+        alldayList.innerHTML = '';
+      } else {
+        alldayCard.style.display = 'block';
+        alldayList.innerHTML = '';
+        for (const t of allDayTasks) {
+          const pill = document.createElement('div');
+          pill.className = 'allday-pill';
+          const c = t.color || 'blue';
+          pill.classList.add('color-' + c);
+          if (t.completed) pill.classList.add('completed');
+
+          pill.innerHTML = `
+            <div class="allday-top">
+              <span class="allday-title">${t.title || 'Без названия'}</span>
+              <span class="allday-actions">
+                <button class="allday-btn ${t.completed ? 'return' : 'done'}">${t.completed ? 'Верн.' : 'Вып.'}</button>
+                <button class="allday-btn edit">&#9998;</button>
+                <button class="allday-btn delete">&#10005;</button>
+              </span>
+            </div>
+            ${t.description ? `<div class="allday-desc">${t.description}</div>` : ''}
+          `;
+
+          const btnDone = pill.querySelector('.done, .return');
+          const btnEdit = pill.querySelector('.edit');
+          const btnDelete = pill.querySelector('.delete');
+
+          pill.onclick = () => {
+            openTaskModal(t);
+          };
+
+          btnDone.onclick = (e) => {
+            e.stopPropagation();
+            const all = getUserTasks(user);
+            const idx = all.findIndex(x => x.id === t.id);
+            if (idx >= 0) {
+              all[idx].completed = !all[idx].completed;
+              saveUserTasks(user, all);
+              renderTimeline();
+              renderTracker();
+              renderArchive();
+              if (state.showCalendar) renderCalendar();
+            }
+          };
+
+          btnEdit.onclick = (e) => {
+            e.stopPropagation();
+            openTaskModal(t);
+          };
+
+          btnDelete.onclick = (e) => {
+            e.stopPropagation();
+            const all = getUserTasks(user);
+            const filtered = all.filter(x => x.id !== t.id);
+            saveUserTasks(user, filtered);
+            renderTimeline();
+            renderTracker();
+            renderArchive();
+            if (state.showCalendar) renderCalendar();
+          };
+
+          alldayList.appendChild(pill);
+        }
+      }
+    }
+
+    // Сетка времени для обычных задач
+    for (let m = visibleStart; m < visibleEnd; m += slotMinutes) {
+      const slot = document.createElement('div');
+      slot.className = 'time-slot';
+
+      if (slotMinutes >= 60) {
+        if (m % 60 === 0) {
+          slot.innerHTML = `<span class="time-slot-label">${minutesToTimeStr(m)}</span>`;
+        } else {
+          slot.innerHTML = '&nbsp;';
+        }
+      } else {
+        slot.innerHTML = `<span class="time-slot-label">${minutesToTimeStr(m)}</span>`;
+      }
+      timeScale.appendChild(slot);
+
+      const line = document.createElement('div');
+      line.className = 'time-line' + (m % 60 === 0 ? ' hour' : '');
+      line.style.top = ((m - visibleStart) * minuteHeight) + 'px';
+      timeTrack.appendChild(line);
+    }
+
+    // Линия текущего времени (для сегодняшнего дня)
+    const todayKey = toDateInputValue(new Date());
+    if (dateKey === todayKey) {
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      if (nowMinutes >= visibleStart && nowMinutes <= visibleEnd) {
+        const nowLine = document.createElement('div');
+        nowLine.className = 'now-line';
+        nowLine.style.top = ((nowMinutes - visibleStart) * minuteHeight) + 'px';
+        timeTrack.appendChild(nowLine);
+      }
+    }
+
+    const dayTasks = tasks.filter(t =>
+      t.date === dateKey &&
+      !t.allDay &&
+      t.startMinutes + t.durationMinutes > visibleStart &&
+      t.startMinutes < visibleEnd
+    );
+
+    for (const task of dayTasks) {
+      const block = document.createElement('div');
+      block.className = 'task-block';
+
+      const taskColor = task.color || 'blue';
+      block.classList.add('color-' + taskColor);
+      if (task.completed) {
+        block.classList.add('completed');
+      }
+      block.dataset.id = task.id;
+
+      const taskStartVisible = Math.max(task.startMinutes, visibleStart);
+      const taskEndVisible = Math.min(task.startMinutes + task.durationMinutes, visibleEnd);
+
+      const top = (taskStartVisible - visibleStart) * minuteHeight;
+      const heightMinutes = Math.max(5, taskEndVisible - taskStartVisible);
+      const height = Math.max(minBlockHeight, heightMinutes * minuteHeight);
+
+      block.style.top = top + 'px';
+      block.style.height = height + 'px';
+
+      let endMinutes = task.startMinutes + task.durationMinutes;
+      if (endMinutes >= 24 * 60) endMinutes -= 24 * 60;
+
+      const statusHtml = task.completed
+        ? `<div class="task-status">Завершено</div>`
+        : '';
+
+      block.innerHTML = `
+        <div class="task-title">${task.title || 'Без названия'}</div>
+        <div class="task-time">
+          ${minutesToTimeStr(task.startMinutes)}–${minutesToTimeStr(endMinutes)}
+          • ${task.durationMinutes} мин
+        </div>
+        ${task.description ? `<div class="task-desc">${task.description}</div>` : ''}
+        ${statusHtml}
+        <div class="task-actions">
+          <button class="${task.completed ? 'return' : 'done'}">${task.completed ? 'Верн.' : 'Вып.'}</button>
+          <button class="edit">Ред.</button>
+          <button class="delete delete">Удалить</button>
+        </div>
+      `;
+
+      // Drag & Drop
+      attachDragHandlers(block, task, minuteHeight, slotMinutes, visibleStart, visibleEnd);
+
+      const btnDelete = block.querySelector('.delete');
+      btnDelete.onclick = (e) => {
+        e.stopPropagation();
+        const allTasks = getUserTasks(user);
+        const newTasks = allTasks.filter(t => t.id !== task.id);
+        saveUserTasks(user, newTasks);
+        renderTimeline();
+        renderTracker();
+        renderArchive();
+        if (state.showCalendar) renderCalendar();
+      };
+
+      const btnEdit = block.querySelector('.edit');
+      btnEdit.onclick = (e) => {
+        e.stopPropagation();
+        openTaskModal(task);
+      };
+
+      const btnToggle = block.querySelector('.done, .return');
+      btnToggle.onclick = (e) => {
+        e.stopPropagation();
+        const allTasks = getUserTasks(user);
+        const idx = allTasks.findIndex(t => t.id === task.id);
+        if (idx >= 0) {
+          allTasks[idx].completed = !allTasks[idx].completed;
+          saveUserTasks(user, allTasks);
+          renderTimeline();
+          renderTracker();
+          renderArchive();
+          if (state.showCalendar) renderCalendar();
+        }
+      };
+
+      block.onclick = () => {
+        openTaskModal(task);
+      };
+
+      timeTrack.appendChild(block);
+    }
+  }
+
+  function attachDragHandlers(el, task, minuteHeight, slotMinutes, visibleStart, visibleEnd) {
+    const user = getCurrentUser();
+    let startY = 0;
+    let originalStartMinutes = 0;
+    let dragging = false;
+
+    const onPointerDown = (e) => {
+      if (e.target.closest('.task-actions')) return;
+      if (task.allDay) return;
+      dragging = true;
+      state.draggingTaskId = task.id;
+      startY = e.clientY || (e.touches && e.touches[0].clientY);
+      originalStartMinutes = task.startMinutes;
+      el.classList.add('dragging');
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+      e.preventDefault();
+    };
+
+    const onPointerMove = (e) => {
+      if (!dragging) return;
+      const currentY = e.clientY || (e.touches && e.touches[0].clientY);
+      const deltaY = currentY - startY;
+      let deltaMinutes = Math.round(deltaY / minuteHeight);
+      deltaMinutes = Math.round(deltaMinutes / slotMinutes) * slotMinutes;
+
+      let newStart = originalStartMinutes + deltaMinutes;
+
+      if (newStart < 0) newStart = 0;
+      if (newStart + task.durationMinutes > 24 * 60) {
+        newStart = 24 * 60 - task.durationMinutes;
+      }
+
+      el.style.top = ((newStart - visibleStart) * minuteHeight) + 'px';
+
+      const timeEl = el.querySelector('.task-time');
+      if (timeEl) {
+        let endMinutes = newStart + task.durationMinutes;
+        if (endMinutes >= 24 * 60) endMinutes -= 24 * 60;
+        timeEl.textContent = `${minutesToTimeStr(newStart)}–${minutesToTimeStr(endMinutes)} • ${task.durationMinutes} мин`;
+      }
+    };
+
+    const onPointerUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      el.classList.remove('dragging');
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+
+      const currentTop = parseFloat(el.style.top || '0');
+      let newStart = Math.round(currentTop / minuteHeight) + visibleStart;
+      newStart = Math.round(newStart / slotMinutes) * slotMinutes;
+
+      if (newStart < 0) newStart = 0;
+      if (newStart + task.durationMinutes > 24 * 60) {
+        newStart = 24 * 60 - task.durationMinutes;
+      }
+
+      const tasks = getUserTasks(user);
+      const idx = tasks.findIndex(t => t.id === task.id);
+      if (idx >= 0) {
+        tasks[idx].startMinutes = newStart;
+        saveUserTasks(user, tasks);
+        renderTimeline();
+      }
+      state.draggingTaskId = null;
+    };
+
+    el.addEventListener('pointerdown', onPointerDown);
+  }
+
+  // ================== МОДАЛКА ЗАДАЧИ ==================
+  const fabAdd = document.getElementById('fabAdd');
+  const taskModalBackdrop = document.getElementById('taskModal');
+  const taskModalClose = document.getElementById('taskModalClose');
+  const taskModalCancel = document.getElementById('taskModalCancel');
+  const taskModalSave = document.getElementById('taskModalSave');
+  const taskModalTitle = document.getElementById('taskModalTitle');
+  const inputTaskTitle = document.getElementById('taskTitle');
+  const inputTaskDesc = document.getElementById('taskDesc');
+  const inputTaskDate = document.getElementById('taskDate');
+  const inputTaskTime = document.getElementById('taskTime');
+  const inputTaskDuration = document.getElementById('taskDuration');
+  const inputTaskColor = document.getElementById('taskColor');
+  const inputTaskAllDay = document.getElementById('taskAllDay');
+  const expectedEndEl = document.getElementById('taskExpectedEnd');
+  const taskTitlesList = document.getElementById('taskTitlesList');
+
+  let editingTaskId = null;
+  let repeatDates = new Set();
+  let repeatCalendarMonth = null;
+
+  function updateExpectedEndLabel() {
+    if (!expectedEndEl) return;
+    if (inputTaskAllDay && inputTaskAllDay.checked) {
+      expectedEndEl.textContent = 'Задача на весь день';
+      return;
+    }
+    const timeVal = inputTaskTime.value;
+    const durVal = parseInt(inputTaskDuration.value, 10);
+    if (!timeVal || !durVal) {
+      expectedEndEl.textContent = '';
+      return;
+    }
+    const startMinutes = timeStrToMinutes(timeVal);
+    let endMinutes = startMinutes + durVal;
+    if (endMinutes >= 24 * 60) endMinutes -= 24 * 60;
+    expectedEndEl.textContent = 'Ожидаемый конец: ' + minutesToTimeStr(endMinutes);
+  }
+
+  function applyAllDayState() {
+    if (!inputTaskAllDay) return;
+    if (inputTaskAllDay.checked) {
+      inputTaskTime.disabled = true;
+      inputTaskDuration.disabled = true;
+      expectedEndEl.textContent = 'Задача на весь день';
+    } else {
+      inputTaskTime.disabled = false;
+      inputTaskDuration.disabled = false;
+      updateExpectedEndLabel();
+    }
+  }
+
+  function fillTaskTitlesDatalist() {
+    const user = getCurrentUser();
+    if (!user || !taskTitlesList) return;
+    const tasks = getUserTasks(user);
+    const titlesSet = new Set();
+    for (const t of tasks) {
+      const title = (t.title || '').trim();
+      if (title) titlesSet.add(title);
+    }
+    taskTitlesList.innerHTML = '';
+    Array.from(titlesSet).sort((a, b) => a.localeCompare(b, 'ru')).forEach(title => {
+      const opt = document.createElement('option');
+      opt.value = title;
+      taskTitlesList.appendChild(opt);
+    });
+  }
+
+  function renderRepeatCalendar() {
+    const container = document.getElementById('repeatCalendar');
+    if (!container) return;
+
+    const baseDateStr = inputTaskDate.value || toDateInputValue(state.currentDate);
+    const baseDate = fromDateInputValue(baseDateStr);
+
+    if (!repeatCalendarMonth) {
+      repeatCalendarMonth = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+    }
+
+    const year = repeatCalendarMonth.getFullYear();
+    const month = repeatCalendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const firstWeekday = (firstDay.getDay() + 6) % 7; // Пн=0
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysPrevMonth = new Date(year, month, 0).getDate();
+
+    const monthTitle = formatMonthTitle(repeatCalendarMonth);
+
+    container.innerHTML = `
+      <div class="repeat-cal-header">
+        <button class="repeat-cal-nav-btn" id="repeatCalPrev">‹</button>
+        <div class="repeat-cal-title">${monthTitle}</div>
+        <button class="repeat-cal-nav-btn" id="repeatCalNext">›</button>
+      </div>
+      <div class="repeat-cal-weekdays">
+        <div class="repeat-cal-weekday">Пн</div>
+        <div class="repeat-cal-weekday">Вт</div>
+        <div class="repeat-cal-weekday">Ср</div>
+        <div class="repeat-cal-weekday">Чт</div>
+        <div class="repeat-cal-weekday">Пт</div>
+        <div class="repeat-cal-weekday">Сб</div>
+        <div class="repeat-cal-weekday">Вс</div>
+      </div>
+      <div class="repeat-cal-grid" id="repeatCalGrid"></div>
+    `;
+
+    const grid = document.getElementById('repeatCalGrid');
+    const totalCells = 42;
+    const baseKey = baseDateStr;
+
+    for (let i = 0; i < totalCells; i++) {
+      let dayNum, offset;
+      if (i < firstWeekday) {
+        dayNum = daysPrevMonth - firstWeekday + 1 + i;
+        offset = -1;
+      } else if (i >= firstWeekday + daysInMonth) {
+        dayNum = i - firstWeekday - daysInMonth + 1;
+        offset = 1;
+      } else {
+        dayNum = i - firstWeekday + 1;
+        offset = 0;
+      }
+
+      const cellDate = new Date(year, month + offset, dayNum);
+      const dateKey = toDateInputValue(cellDate);
+      const inThisMonth = offset === 0;
+
+      const cell = document.createElement('div');
+      cell.className = 'repeat-cal-day';
+      if (!inThisMonth) {
+        cell.style.opacity = '0.3';
+      }
+
+      if (dateKey === baseKey) {
+        cell.classList.add('base-date');
+      }
+      if (repeatDates.has(dateKey)) {
+        cell.classList.add('selected');
+      }
+
+      cell.textContent = dayNum;
+      cell.dataset.date = dateKey;
+
+      cell.onclick = () => {
+        if (repeatDates.has(dateKey)) {
+          repeatDates.delete(dateKey);
+        } else {
+          repeatDates.add(dateKey);
+        }
+        renderRepeatCalendar();
+      };
+
+      grid.appendChild(cell);
+    }
+
+    document.getElementById('repeatCalPrev').onclick = () => {
+      repeatCalendarMonth.setMonth(repeatCalendarMonth.getMonth() - 1);
+      renderRepeatCalendar();
+    };
+    document.getElementById('repeatCalNext').onclick = () => {
+      repeatCalendarMonth.setMonth(repeatCalendarMonth.getMonth() + 1);
+      renderRepeatCalendar();
+    };
+  }
+
+  function openTaskModal(task, options = {}) {
+    const user = getCurrentUser();
+    if (!user) return;
+
+    const asTemplate = !!options.asTemplate;
+    const currentDate = toDateInputValue(state.currentDate);
+
+    repeatDates = new Set();
+    repeatCalendarMonth = null;
+    fillTaskTitlesDatalist();
+
+    if (task && !asTemplate) {
+      editingTaskId = task.id;
+      taskModalTitle.textContent = 'Редактировать задачу';
+      inputTaskTitle.value = task.title || '';
+      inputTaskDesc.value = task.description || '';
+      inputTaskDate.value = task.date;
+      inputTaskTime.value = task.allDay ? '00:00' : minutesToTimeStr(task.startMinutes);
+      inputTaskDuration.value = task.allDay ? 1440 : task.durationMinutes;
+      inputTaskColor.value = task.color || 'blue';
+      inputTaskAllDay.checked = !!task.allDay;
+    } else if (task && asTemplate) {
+      editingTaskId = null;
+      taskModalTitle.textContent = 'Новая задача (повтор)';
+      inputTaskTitle.value = task.title || '';
+      inputTaskDesc.value = task.description || '';
+      inputTaskDate.value = currentDate;
+      inputTaskTime.value = task.allDay ? '00:00' : minutesToTimeStr(task.startMinutes);
+      inputTaskDuration.value = task.allDay ? 1440 : task.durationMinutes;
+      inputTaskColor.value = task.color || 'blue';
+      inputTaskAllDay.checked = !!task.allDay;
+    } else {
+      editingTaskId = null;
+      taskModalTitle.textContent = 'Новая задача';
+      inputTaskTitle.value = '';
+      inputTaskDesc.value = '';
+      inputTaskDate.value = currentDate;
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      inputTaskTime.value = timeStr;
+      inputTaskDuration.value = 60;
+      inputTaskColor.value = 'blue';
+      inputTaskAllDay.checked = false;
+    }
+
+    applyAllDayState();
+    updateExpectedEndLabel();
+    renderRepeatCalendar();
+
+    taskModalBackdrop.classList.add('active');
+  }
+
+  function closeTaskModal() {
+    taskModalBackdrop.classList.remove('active');
+    editingTaskId = null;
+    repeatDates = new Set();
+    repeatCalendarMonth = null;
+  }
+
+  fabAdd.onclick = () => {
+    const user = getCurrentUser();
+    if (!user) {
+      renderAuthScreen();
+      return;
+    }
+    openTaskModal(null);
+  };
+
+  taskModalClose.onclick = closeTaskModal;
+  taskModalCancel.onclick = closeTaskModal;
+  taskModalBackdrop.addEventListener('click', (e) => {
+    if (e.target === taskModalBackdrop) {
+      closeTaskModal();
+    }
+  });
+
+  inputTaskTime.addEventListener('input', updateExpectedEndLabel);
+  inputTaskDuration.addEventListener('input', updateExpectedEndLabel);
+  inputTaskDate.addEventListener('input', () => {
+    repeatCalendarMonth = null;
+    renderRepeatCalendar();
+  });
+  inputTaskAllDay.addEventListener('change', applyAllDayState);
+
+  taskModalSave.onclick = () => {
+    const user = getCurrentUser();
+    if (!user) return;
+
+    const title = inputTaskTitle.value.trim();
+    const description = inputTaskDesc.value.trim();
+    const date = inputTaskDate.value;
+    const time = inputTaskTime.value;
+    const color = inputTaskColor.value || 'blue';
+    const allDay = inputTaskAllDay.checked;
+
+    let duration = parseInt(inputTaskDuration.value, 10) || 0;
+
+    if (!date) {
+      alert('Укажите дату.');
+      return;
+    }
+
+    if (!allDay && (!time || !duration)) {
+      alert('Укажите время и длительность.');
+      return;
+    }
+
+    let startMinutes;
+    if (allDay) {
+      startMinutes = 0;
+      duration = 24 * 60;
+    } else {
+      startMinutes = timeStrToMinutes(time);
+    }
+
+    let tasks = getUserTasks(user);
+
+    if (editingTaskId) {
+      const idx = tasks.findIndex(t => t.id === editingTaskId);
+      if (idx >= 0) {
+        tasks[idx] = {
+          ...tasks[idx],
+          title,
+          description,
+          date,
+          startMinutes,
+          durationMinutes: duration,
+          color,
+          allDay
+        };
+      }
+    } else {
+      const baseDateStr = date;
+      const extraDates = Array.from(repeatDates || []);
+      const allDates = [baseDateStr, ...extraDates].filter((v, i, arr) => arr.indexOf(v) === i);
+
+      for (const d of allDates) {
+        const id = 't_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+        tasks.push({
+          id,
+          title,
+          description,
+          date: d,
+          startMinutes,
+          durationMinutes: duration,
+          color,
+          allDay,
+          completed: false
+        });
+      }
+    }
+
+    saveUserTasks(user, tasks);
+    closeTaskModal();
+
+    if (date === toDateInputValue(state.currentDate)) {
+      renderTimeline();
+      renderTracker();
+      renderArchive();
+      if (state.showCalendar) renderCalendar();
+    } else {
+      state.currentDate = fromDateInputValue(date);
+      state.calendarMonthDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
+      renderApp();
+    }
+  };
+
+  // ================== СТАРТ ==================
+  (function init() {
+    const user = getCurrentUser();
+    if (user) {
+      renderApp();
+    } else {
+      renderAuthScreen();
+    }
+
+    if (!window.__plannerNowTimer) {
+      window.__plannerNowTimer = setInterval(() => {
+        const currentUser = getCurrentUser();
+        if (!currentUser) return;
+        const todayKey = toDateInputValue(new Date());
+        const dateKey = toDateInputValue(state.currentDate);
+        if (todayKey === dateKey) {
+          renderTimeline();
+        }
+      }, 60000);
+    }
+  })();
+</script>
+</body>
+</html>
