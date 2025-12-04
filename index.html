@@ -16,6 +16,7 @@
       --radius-lg: 16px;
       --radius-md: 12px;
       --shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.08);
+      --slot-height: 72px;
     }
 
     * {
@@ -660,7 +661,7 @@
       color: #5b21b6;
     }
 
-    /* Выполненные задачи на весь день — серые, как обычные */
+    /* Выполненные задачи на весь день — серые */
     .allday-pill.completed {
       background: #f9fafb !important;
       color: #9ca3af !important;
@@ -710,6 +711,7 @@
     .time-slot-label {
       position: sticky;
       top: 0;
+      background: white;
     }
 
     .time-track {
@@ -875,13 +877,13 @@
       height: 52px;
       border-radius: 999px;
       border: none;
-      background: #3b82f6; /* мягкий синий */
+      background: #3b82f6;
       color: white;
       display: flex;
       align-items: center;
       justify-content: center;
       box-shadow: 0 10px 30px rgba(37, 99, 235, 0.45);
-      font-size: 26px;
+      font-size: 28px;
       line-height: 1;
       padding: 0;
       cursor: pointer;
@@ -1016,7 +1018,6 @@
     .repeat-cal-day.base-date {
       border: 1px solid var(--primary);
     }
-
   </style>
 </head>
 <body>
@@ -1253,7 +1254,7 @@
           Все данные хранятся только в этом браузере.
         </div>
       </div>
-   `;
+    `;
 
     const loginInput = document.getElementById('authLogin');
     const passInput = document.getElementById('authPassword');
@@ -1488,7 +1489,7 @@
       renderApp();
     };
 
-    // Кнопочки в шапке
+    // Кнопки в шапке
     document.getElementById('btnCalendar').onclick = () => {
       state.showCalendar = !state.showCalendar;
       renderApp();
@@ -1506,6 +1507,7 @@
       renderApp();
     };
 
+    // Календарь
     if (state.showCalendar) {
       const btnCalPrev = document.getElementById('btnCalPrev');
       const btnCalNext = document.getElementById('btnCalNext');
@@ -1541,7 +1543,7 @@
       });
     }
 
-    // Настройки, импорт/экспорт
+    // Настройки
     if (state.showSettings) {
       const slotSelect = document.getElementById('slotSelect');
       const startInput = document.getElementById('visibleStartTime');
@@ -1578,104 +1580,97 @@
       if (startInput) startInput.onchange = applySettings;
       if (endInput) endInput.onchange = applySettings;
 
-      if ((importBtn || exportBtn) && importInput && userNow) {
-        // ИМПОРТ
-        if (importBtn) {
-          importBtn.onclick = () => importInput.click();
+      // Импорт
+      if (importBtn && importInput && userNow) {
+        importBtn.onclick = () => importInput.click();
+        importInput.onchange = (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
 
-          importInput.onchange = (e) => {
-            const file = e.target.files && e.target.files[0];
-            if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            try {
+              let json = JSON.parse(ev.target.result);
 
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              try {
-                let json = JSON.parse(ev.target.result);
-
-                // поддержка формата { tasks: [...] } и просто [...]
-                if (!Array.isArray(json) && Array.isArray(json.tasks)) {
-                  json = json.tasks;
-                }
-
-                if (!Array.isArray(json)) {
-                  alert('В JSON должна быть коллекция задач (массив).');
-                  return;
-                }
-
-                if (!confirm('Текущие задачи для этого пользователя будут заменены на задачи из файла. Продолжить?')) {
-                  return;
-                }
-
-                const allowedColors = ['blue', 'green', 'yellow', 'red', 'purple'];
-
-                const normalized = json.map((raw) => {
-                  const id = (typeof raw.id === 'string' && raw.id.trim())
-                    ? raw.id
-                    : 't_' + Date.now() + '_' + Math.random().toString(16).slice(2);
-
-                  const dateStr = (typeof raw.date === 'string' && raw.date.trim())
-                    ? raw.date
-                    : toDateInputValue(new Date());
-
-                  const startMinutes = Number.isFinite(raw.startMinutes)
-                    ? raw.startMinutes
-                    : 0;
-
-                  const durationMinutes = Number.isFinite(raw.durationMinutes)
-                    ? raw.durationMinutes
-                    : 60;
-
-                  const color = allowedColors.includes(raw.color)
-                    ? raw.color
-                    : 'blue';
-
-                  return {
-                    id,
-                    title: raw.title || '',
-                    description: raw.description || '',
-                    date: dateStr,
-                    startMinutes,
-                    durationMinutes,
-                    color,
-                    allDay: !!raw.allDay,
-                    completed: !!raw.completed
-                  };
-                });
-
-                saveUserTasks(userNow, normalized);
-                renderTimeline();
-                renderTracker();
-                renderArchive();
-                if (state.showCalendar) renderCalendar();
-                alert('Импорт задач завершён.');
-              } catch (err) {
-                console.error(err);
-                alert('Не удалось прочитать JSON. Проверь формат файла.');
-              } finally {
-                importInput.value = '';
+              if (!Array.isArray(json) && Array.isArray(json.tasks)) {
+                json = json.tasks;
               }
-            };
 
-            reader.readAsText(file, 'utf-8');
-          };
-        }
+              if (!Array.isArray(json)) {
+                alert('В JSON должна быть коллекция задач (массив).');
+                return;
+              }
 
-        // ЭКСПОРТ
-        if (exportBtn) {
-          exportBtn.onclick = () => {
-            const tasks = getUserTasks(userNow) || [];
-            const blob = new Blob(
-              [JSON.stringify(tasks, null, 2)],
-              { type: 'application/json' }
-            );
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `planner_tasks_${userNow}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+              if (!confirm('Текущие задачи для этого пользователя будут заменены на задачи из файла. Продолжить?')) {
+                return;
+              }
+
+              const allowedColors = ['blue', 'green', 'yellow', 'red', 'purple'];
+
+              const normalized = json.map((raw) => {
+                const id = (typeof raw.id === 'string' && raw.id.trim())
+                  ? raw.id
+                  : 't_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+
+                const dateStr = (typeof raw.date === 'string' && raw.date.trim())
+                  ? raw.date
+                  : toDateInputValue(new Date());
+
+                const startMinutes = Number.isFinite(raw.startMinutes)
+                  ? raw.startMinutes
+                  : 0;
+
+                const durationMinutes = Number.isFinite(raw.durationMinutes)
+                  ? raw.durationMinutes
+                  : 60;
+
+                const color = allowedColors.includes(raw.color)
+                  ? raw.color
+                  : 'blue';
+
+                return {
+                  id,
+                  title: raw.title || '',
+                  description: raw.description || '',
+                  date: dateStr,
+                  startMinutes,
+                  durationMinutes,
+                  color,
+                  allDay: !!raw.allDay,
+                  completed: !!raw.completed
+                };
+              });
+
+              saveUserTasks(userNow, normalized);
+              renderTimeline();
+              renderTracker();
+              renderArchive();
+              if (state.showCalendar) renderCalendar();
+              alert('Импорт задач завершён.');
+            } catch (err) {
+              console.error(err);
+              alert('Не удалось прочитать JSON. Проверь формат файла.');
+            } finally {
+              importInput.value = '';
+            }
           };
-        }
+
+          reader.readAsText(file, 'utf-8');
+        };
+      }
+
+      // Экспорт
+      if (exportBtn && userNow) {
+        exportBtn.onclick = () => {
+          const tasks = getUserTasks(userNow) || [];
+          const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `planner_tasks_${userNow}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        };
       }
     }
 
@@ -1689,6 +1684,7 @@
     renderTimeline();
   }
 
+  // ================== КАЛЕНДАРЬ ==================
   function renderCalendar() {
     const user = getCurrentUser();
     if (!user) return;
@@ -1714,7 +1710,7 @@
 
     const colorsByDate = {};
     for (const t of tasks) {
-      if (t.completed) continue; // выполненные не подсвечиваем в общем календаре
+      if (t.completed) continue;
       const c = t.color || 'blue';
       if (visColors[c] === false) continue;
       if (!colorsByDate[t.date]) colorsByDate[t.date] = new Set();
@@ -1771,8 +1767,8 @@
       if (inThisMonth) {
         cell.addEventListener('click', () => {
           state.currentDate = cellDate;
+          state.showCalendar = true;
           renderApp();
-          state.showCalendar = true; // календарь остаётся открытым
         });
       }
 
@@ -1780,6 +1776,7 @@
     }
   }
 
+  // ================== ТРЕКЕР ==================
   function renderTracker() {
     const user = getCurrentUser();
     if (!user) return;
@@ -1849,6 +1846,7 @@
     }
   }
 
+  // ================== АРХИВ ==================
   function renderArchive() {
     const user = getCurrentUser();
     if (!user) return;
@@ -1932,6 +1930,7 @@
     }
   }
 
+  // ================== ТАЙМЛАЙН ==================
   function renderTimeline() {
     const user = getCurrentUser();
     if (!user) return;
@@ -1946,14 +1945,18 @@
 
     const slotMinutes = state.slotMinutes || 60;
 
-    const baseSlotHeight = 36;
-	const slotHeight = baseSlotHeight;
-	const minuteHeight = slotHeight / slotMinutes;
+    // высота строки шкалы под шаг
+    let slotHeight;
+    if (slotMinutes === 60) {
+      slotHeight = 96; // часовой шаг — высокий ряд
+    } else if (slotMinutes === 30) {
+      slotHeight = 64;
+    } else {
+      slotHeight = 44;
+    }
 
-	// минимальная высота задачи = длительности одного слота,
-	// чтобы она не была меньше клетки, но и не "толще" сетки
-	const minBlockMinutes = slotMinutes;
-
+    const minuteHeight = slotHeight / slotMinutes;
+    const minBlockHeight = slotHeight - 12; // чтобы влезли текст и кнопки
 
     document.documentElement.style.setProperty('--slot-height', slotHeight + 'px');
 
@@ -2040,19 +2043,15 @@
       }
     }
 
-    // Сетка времени для обычных задач
+    // Сетка времени
     for (let m = visibleStart; m < visibleEnd; m += slotMinutes) {
       const slot = document.createElement('div');
       slot.className = 'time-slot';
 
-      if (slotMinutes >= 60) {
-        if (m % 60 === 0) {
-          slot.innerHTML = `<span class="time-slot-label">${minutesToTimeStr(m)}</span>`;
-        } else {
-          slot.innerHTML = '&nbsp;';
-        }
-      } else {
+      if (m % 60 === 0) {
         slot.innerHTML = `<span class="time-slot-label">${minutesToTimeStr(m)}</span>`;
+      } else {
+        slot.innerHTML = '&nbsp;';
       }
       timeScale.appendChild(slot);
 
@@ -2062,7 +2061,7 @@
       timeTrack.appendChild(line);
     }
 
-    // Линия текущего времени (для сегодняшнего дня)
+    // Линия "сейчас"
     const todayKey = toDateInputValue(new Date());
     if (dateKey === todayKey) {
       const now = new Date();
@@ -2097,16 +2096,12 @@
       const taskEndVisible = Math.min(task.startMinutes + task.durationMinutes, visibleEnd);
 
       const top = (taskStartVisible - visibleStart) * minuteHeight;
-      let heightMinutes = taskEndVisible - taskStartVisible;
+      let heightMinutes = Math.max(5, taskEndVisible - taskStartVisible);
+      let height = heightMinutes * minuteHeight;
 
-		// если видимый кусок короче, чем один слот — растягиваем до слота,
-		// но не делаем его "толще", чем положено по времени
-	  if (heightMinutes < minBlockMinutes) {
-		heightMinutes = minBlockMinutes;
-	  }
-
-	  const height = heightMinutes * minuteHeight;
-
+      if (height < minBlockHeight) {
+        height = minBlockHeight; // не даём блоку сжаться меньше строки
+      }
 
       block.style.top = top + 'px';
       block.style.height = height + 'px';
@@ -2118,6 +2113,9 @@
         ? `<div class="task-status">Завершено</div>`
         : '';
 
+      const showDone = !task.completed;
+      const showReturn = task.completed;
+
       block.innerHTML = `
         <div class="task-title">${task.title || 'Без названия'}</div>
         <div class="task-time">
@@ -2127,13 +2125,13 @@
         ${task.description ? `<div class="task-desc">${task.description}</div>` : ''}
         ${statusHtml}
         <div class="task-actions">
-          <button class="${task.completed ? 'return' : 'done'}">${task.completed ? 'Верн.' : 'Вып.'}</button>
+          <button class="done" style="${showDone ? '' : 'display:none;'}">Вып.</button>
+          <button class="return" style="${showReturn ? '' : 'display:none;'}">Верн.</button>
           <button class="edit">Ред.</button>
-          <button class="delete delete">Удалить</button>
+          <button class="delete">Удалить</button>
         </div>
       `;
 
-      // Drag & Drop
       attachDragHandlers(block, task, minuteHeight, slotMinutes, visibleStart, visibleEnd);
 
       const btnDelete = block.querySelector('.delete');
@@ -2154,20 +2152,39 @@
         openTaskModal(task);
       };
 
-      const btnToggle = block.querySelector('.done, .return');
-      btnToggle.onclick = (e) => {
-        e.stopPropagation();
-        const allTasks = getUserTasks(user);
-        const idx = allTasks.findIndex(t => t.id === task.id);
-        if (idx >= 0) {
-          allTasks[idx].completed = !allTasks[idx].completed;
-          saveUserTasks(user, allTasks);
-          renderTimeline();
-          renderTracker();
-          renderArchive();
-          if (state.showCalendar) renderCalendar();
-        }
-      };
+      const btnDone = block.querySelector('.done');
+      if (btnDone) {
+        btnDone.onclick = (e) => {
+          e.stopPropagation();
+          const allTasks = getUserTasks(user);
+          const idx = allTasks.findIndex(t => t.id === task.id);
+          if (idx >= 0) {
+            allTasks[idx].completed = true;
+            saveUserTasks(user, allTasks);
+            renderTimeline();
+            renderTracker();
+            renderArchive();
+            if (state.showCalendar) renderCalendar();
+          }
+        };
+      }
+
+      const btnReturn = block.querySelector('.return');
+      if (btnReturn) {
+        btnReturn.onclick = (e) => {
+          e.stopPropagation();
+          const allTasks = getUserTasks(user);
+          const idx = allTasks.findIndex(t => t.id === task.id);
+          if (idx >= 0) {
+            allTasks[idx].completed = false;
+            saveUserTasks(user, allTasks);
+            renderTimeline();
+            renderTracker();
+            renderArchive();
+            if (state.showCalendar) renderCalendar();
+          }
+        };
+      }
 
       block.onclick = () => {
         openTaskModal(task);
