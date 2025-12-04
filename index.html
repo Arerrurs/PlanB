@@ -386,13 +386,24 @@
       margin-bottom: 4px;
     }
 
+    .tracker-header-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .tracker-header-titleCell {
+      flex: 0 0 45%;
+    }
+
     .tracker-weekdays {
+      flex: 1;
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 4px;
       font-size: 10px;
       color: var(--muted);
-      margin-bottom: 4px;
     }
 
     .tracker-weekdays span {
@@ -560,12 +571,6 @@
       cursor: pointer;
     }
 
-    .allday-pill.completed {
-      background: #f9fafb;
-      color: #9ca3af;
-      border-style: dashed;
-    }
-
     .allday-top {
       display: flex;
       justify-content: space-between;
@@ -619,7 +624,6 @@
       color: #1d4ed8;
     }
 
-    /* Цвета all-day */
     .allday-pill.color-blue {
       background: #dbeafe;
       border-color: #bfdbfe;
@@ -644,6 +648,13 @@
       background: #ede9fe;
       border-color: #ddd6fe;
       color: #5b21b6;
+    }
+
+    /* Выполненные задачи на весь день — серые, как обычные */
+    .allday-pill.completed {
+      background: #f9fafb !important;
+      color: #9ca3af !important;
+      border-style: dashed;
     }
 
     /* ====== TIMELINE ====== */
@@ -729,12 +740,13 @@
       border-radius: var(--radius-md);
       background: var(--primary-soft);
       color: #1e40af;
-      padding: 6px 8px 8px;
+      padding: 6px 8px 6px;
       font-size: 13px;
       box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
       cursor: grab;
       touch-action: none;
       transition: box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+      overflow: hidden;
     }
 
     .task-block:active {
@@ -860,6 +872,8 @@
       justify-content: center;
       box-shadow: 0 10px 30px rgba(37, 99, 235, 0.6);
       font-size: 26px;
+      line-height: 0;
+      padding-bottom: 1px;
       cursor: pointer;
       z-index: 20;
     }
@@ -1396,8 +1410,11 @@
       ${state.showTracker ? `
         <div class="tracker-card">
           <div class="tracker-header">Трекер задач (текущая неделя)</div>
-          <div class="tracker-weekdays">
-            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+          <div class="tracker-header-row">
+            <div class="tracker-header-titleCell"></div>
+            <div class="tracker-weekdays">
+              <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+            </div>
           </div>
           <div id="trackerBody"></div>
         </div>
@@ -1437,6 +1454,11 @@
           </div>
           <div class="settings-hint">
             Скрытые часы не показываются на шкале, но задачи в них не удаляются.
+          </div>
+
+          <div class="field-row" style="margin-top:6px;">
+            <button class="btn" id="btnImportJson">Импорт задач из JSON</button>
+            <input type="file" id="inputImportJson" accept="application/json" style="display:none;">
           </div>
         </div>
       ` : ''}
@@ -1522,9 +1544,11 @@
       const slotSelect = document.getElementById('slotSelect');
       const startInput = document.getElementById('visibleStartTime');
       const endInput = document.getElementById('visibleEndTime');
+      const importBtn = document.getElementById('btnImportJson');
+      const importInput = document.getElementById('inputImportJson');
+      const userNow = getCurrentUser();
 
       const applySettings = () => {
-        const userNow = getCurrentUser();
         if (!userNow) return;
         let slotVal = parseInt(slotSelect.value, 10);
         if (![15, 30, 60].includes(slotVal)) slotVal = 60;
@@ -1547,9 +1571,90 @@
         renderTimeline();
       };
 
-      slotSelect.onchange = applySettings;
-      startInput.onchange = applySettings;
-      endInput.onchange = applySettings;
+      if (slotSelect) slotSelect.onchange = applySettings;
+      if (startInput) startInput.onchange = applySettings;
+      if (endInput) endInput.onchange = applySettings;
+
+      // Импорт задач из JSON
+      if (importBtn && importInput && userNow) {
+        importBtn.onclick = () => importInput.click();
+
+        importInput.onchange = (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            try {
+              let json = JSON.parse(ev.target.result);
+
+              // поддержка формата { tasks: [...] } и просто [...]
+              if (!Array.isArray(json) && Array.isArray(json.tasks)) {
+                json = json.tasks;
+              }
+
+              if (!Array.isArray(json)) {
+                alert('В JSON должна быть коллекция задач (массив).');
+                return;
+              }
+
+              if (!confirm('Текущие задачи для этого пользователя будут заменены на задачи из файла. Продолжить?')) {
+                return;
+              }
+
+              const allowedColors = ['blue', 'green', 'yellow', 'red', 'purple'];
+
+              const normalized = json.map((raw) => {
+                const id = (typeof raw.id === 'string' && raw.id.trim())
+                  ? raw.id
+                  : 't_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+
+                const dateStr = (typeof raw.date === 'string' && raw.date.trim())
+                  ? raw.date
+                  : toDateInputValue(new Date());
+
+                const startMinutes = Number.isFinite(raw.startMinutes)
+                  ? raw.startMinutes
+                  : 0;
+
+                const durationMinutes = Number.isFinite(raw.durationMinutes)
+                  ? raw.durationMinutes
+                  : 60;
+
+                const color = allowedColors.includes(raw.color)
+                  ? raw.color
+                  : 'blue';
+
+                return {
+                  id,
+                  title: raw.title || '',
+                  description: raw.description || '',
+                  date: dateStr,
+                  startMinutes,
+                  durationMinutes,
+                  color,
+                  allDay: !!raw.allDay,
+                  completed: !!raw.completed
+                };
+              });
+
+              saveUserTasks(userNow, normalized);
+              renderTimeline();
+              renderTracker();
+              renderArchive();
+              if (state.showCalendar) renderCalendar();
+              alert('Импорт задач завершён.');
+            } catch (err) {
+              console.error(err);
+              alert('Не удалось прочитать JSON. Проверь формат файла.');
+            } finally {
+              importInput.value = '';
+            }
+          };
+
+          reader.readAsText(file, 'utf-8');
+        };
+      }
     }
 
     if (state.showTracker) {
@@ -1822,7 +1927,7 @@
     const baseSlotHeight = 36;
     const slotHeight = baseSlotHeight;
     const minuteHeight = slotHeight / slotMinutes;
-    const minBlockHeight = 56; // чтобы текст не прилипал к рамке
+    const minBlockHeight = slotMinutes === 60 ? 60 : 40;
 
     document.documentElement.style.setProperty('--slot-height', slotHeight + 'px');
 
