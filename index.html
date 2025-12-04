@@ -16,7 +16,6 @@
       --radius-lg: 16px;
       --radius-md: 12px;
       --shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.08);
-      --slot-height: 72px;
     }
 
     * {
@@ -250,16 +249,6 @@
     .settings-hint {
       font-size: 11px;
       color: var(--muted);
-    }
-
-    .field-row {
-      display: flex;
-      gap: 8px;
-    }
-
-    .field-row .field {
-      flex: 1;
-      margin-bottom: 0;
     }
 
     /* ====== CALENDAR ====== */
@@ -661,7 +650,7 @@
       color: #5b21b6;
     }
 
-    /* Выполненные задачи на весь день — серые */
+    /* Выполненные задачи на весь день — серые, как обычные */
     .allday-pill.completed {
       background: #f9fafb !important;
       color: #9ca3af !important;
@@ -699,7 +688,6 @@
     }
 
     .time-slot {
-      height: var(--slot-height);
       font-size: 10px;
       color: var(--muted);
       display: flex;
@@ -711,7 +699,6 @@
     .time-slot-label {
       position: sticky;
       top: 0;
-      background: white;
     }
 
     .time-track {
@@ -883,9 +870,9 @@
       align-items: center;
       justify-content: center;
       box-shadow: 0 10px 30px rgba(37, 99, 235, 0.45);
-      font-size: 28px;
+      font-size: 24px;
       line-height: 1;
-      padding: 0;
+      padding-bottom: 0;
       cursor: pointer;
       z-index: 20;
     }
@@ -951,6 +938,16 @@
     .modal-footer .btn {
       flex: 1;
       justify-content: center;
+    }
+
+    .field-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .field-row .field {
+      flex: 1;
+      margin-bottom: 0;
     }
 
     .expected-end-text {
@@ -1120,13 +1117,13 @@
       'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'
     ];
     const d = new Date(date);
-    return `${mNames[d.getMonth()]} ${d.getFullYear()}`;
+    return mNames[d.getMonth()] + ' ' + d.getFullYear();
   }
 
   function toDateInputValue(date) {
     const d = new Date(date);
     const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   }
 
   function fromDateInputValue(val) {
@@ -1137,7 +1134,7 @@
     mins = Math.max(0, mins);
     const h = Math.floor(mins / 60) % 24;
     const m = mins % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
   }
 
   function timeStrToMinutes(str) {
@@ -1350,6 +1347,7 @@
     const slotMinutes = state.slotMinutes || 60;
     let visibleStart = (typeof settings.visibleStartMinutes === 'number') ? settings.visibleStartMinutes : 0;
     let visibleEnd = (typeof settings.visibleEndMinutes === 'number') ? settings.visibleEndMinutes : 24 * 60;
+    const compressPast = settings.compressPast === true;
 
     if (!state.calendarMonthDate) {
       state.calendarMonthDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
@@ -1457,6 +1455,11 @@
             Скрытые часы не показываются на шкале, но задачи в них не удаляются.
           </div>
 
+          <label style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;">
+            <input type="checkbox" id="chkCompressPast" ${compressPast ? 'checked' : ''} />
+            <span>Сжимать прошедшее время до текущего момента</span>
+          </label>
+
           <div class="field-row" style="margin-top:6px;">
             <button class="btn" id="btnImportJson">Импорт задач из JSON</button>
             <button class="btn" id="btnExportJson">Экспорт задач в JSON</button>
@@ -1507,7 +1510,6 @@
       renderApp();
     };
 
-    // Календарь
     if (state.showCalendar) {
       const btnCalPrev = document.getElementById('btnCalPrev');
       const btnCalNext = document.getElementById('btnCalNext');
@@ -1524,8 +1526,6 @@
         renderApp();
       };
       renderCalendar();
-
-      // фильтр цветов календаря
       document.querySelectorAll('.cal-color-filter').forEach(cb => {
         cb.addEventListener('change', () => {
           const color = cb.dataset.color;
@@ -1543,11 +1543,11 @@
       });
     }
 
-    // Настройки
     if (state.showSettings) {
       const slotSelect = document.getElementById('slotSelect');
       const startInput = document.getElementById('visibleStartTime');
       const endInput = document.getElementById('visibleEndTime');
+      const chkCompressPast = document.getElementById('chkCompressPast');
       const importBtn = document.getElementById('btnImportJson');
       const exportBtn = document.getElementById('btnExportJson');
       const importInput = document.getElementById('inputImportJson');
@@ -1556,7 +1556,7 @@
       const applySettings = () => {
         if (!userNow) return;
         let slotVal = parseInt(slotSelect.value, 10);
-        if (![15, 30, 60].includes(slotVal)) slotVal = 60;
+        if (![15,30,60].includes(slotVal)) slotVal = 60;
         state.slotMinutes = slotVal;
 
         let vs = timeStrToMinutes(startInput.value || '00:00');
@@ -1570,7 +1570,8 @@
           ...prev,
           slotMinutes: state.slotMinutes,
           visibleStartMinutes: vs,
-          visibleEndMinutes: ve
+          visibleEndMinutes: ve,
+          compressPast: chkCompressPast ? chkCompressPast.checked : false
         };
         saveUserSettings(userNow, newSettings);
         renderTimeline();
@@ -1579,55 +1580,45 @@
       if (slotSelect) slotSelect.onchange = applySettings;
       if (startInput) startInput.onchange = applySettings;
       if (endInput) endInput.onchange = applySettings;
+      if (chkCompressPast) chkCompressPast.onchange = applySettings;
 
-      // Импорт
+      // Импорт задач
       if (importBtn && importInput && userNow) {
         importBtn.onclick = () => importInput.click();
         importInput.onchange = (e) => {
           const file = e.target.files && e.target.files[0];
           if (!file) return;
-
           const reader = new FileReader();
           reader.onload = (ev) => {
             try {
               let json = JSON.parse(ev.target.result);
-
               if (!Array.isArray(json) && Array.isArray(json.tasks)) {
                 json = json.tasks;
               }
-
               if (!Array.isArray(json)) {
                 alert('В JSON должна быть коллекция задач (массив).');
                 return;
               }
-
               if (!confirm('Текущие задачи для этого пользователя будут заменены на задачи из файла. Продолжить?')) {
                 return;
               }
-
-              const allowedColors = ['blue', 'green', 'yellow', 'red', 'purple'];
-
-              const normalized = json.map((raw) => {
+              const allowedColors = ['blue','green','yellow','red','purple'];
+              const normalized = json.map(raw => {
                 const id = (typeof raw.id === 'string' && raw.id.trim())
                   ? raw.id
                   : 't_' + Date.now() + '_' + Math.random().toString(16).slice(2);
-
                 const dateStr = (typeof raw.date === 'string' && raw.date.trim())
                   ? raw.date
                   : toDateInputValue(new Date());
-
                 const startMinutes = Number.isFinite(raw.startMinutes)
                   ? raw.startMinutes
                   : 0;
-
                 const durationMinutes = Number.isFinite(raw.durationMinutes)
                   ? raw.durationMinutes
                   : 60;
-
                 const color = allowedColors.includes(raw.color)
                   ? raw.color
                   : 'blue';
-
                 return {
                   id,
                   title: raw.title || '',
@@ -1640,11 +1631,10 @@
                   completed: !!raw.completed
                 };
               });
-
               saveUserTasks(userNow, normalized);
               renderTimeline();
-              renderTracker();
-              renderArchive();
+              if (state.showTracker) renderTracker();
+              if (state.showArchive) renderArchive();
               if (state.showCalendar) renderCalendar();
               alert('Импорт задач завершён.');
             } catch (err) {
@@ -1654,12 +1644,11 @@
               importInput.value = '';
             }
           };
-
           reader.readAsText(file, 'utf-8');
         };
       }
 
-      // Экспорт
+      // Экспорт задач
       if (exportBtn && userNow) {
         exportBtn.onclick = () => {
           const tasks = getUserTasks(userNow) || [];
@@ -1684,7 +1673,7 @@
     renderTimeline();
   }
 
-  // ================== КАЛЕНДАРЬ ==================
+  // ================== CALENDAR ==================
   function renderCalendar() {
     const user = getCurrentUser();
     if (!user) return;
@@ -1767,7 +1756,7 @@
       if (inThisMonth) {
         cell.addEventListener('click', () => {
           state.currentDate = cellDate;
-          state.showCalendar = true;
+          state.calendarMonthDate = new Date(cellDate.getFullYear(), cellDate.getMonth(), 1);
           renderApp();
         });
       }
@@ -1776,7 +1765,7 @@
     }
   }
 
-  // ================== ТРЕКЕР ==================
+  // ================== TRACKER ==================
   function renderTracker() {
     const user = getCurrentUser();
     if (!user) return;
@@ -1784,7 +1773,7 @@
     if (!body) return;
 
     const tasks = getUserTasks(user);
-    const weekDates = getCurrentWeekDateKeys(); // Пн..Вс
+    const weekDates = getCurrentWeekDateKeys();
 
     const titlesSet = new Set();
     for (const t of tasks) {
@@ -1794,9 +1783,7 @@
 
     const map = {};
     for (const title of titlesSet) {
-      map[title] = {
-        doneByDow: [false, false, false, false, false, false, false]
-      };
+      map[title] = { doneByDow: [false,false,false,false,false,false,false] };
     }
 
     for (const t of tasks) {
@@ -1805,14 +1792,14 @@
       const idx = weekDates.indexOf(t.date);
       if (idx === -1) continue;
       if (!map[title]) {
-        map[title] = { doneByDow: [false, false, false, false, false, false, false] };
+        map[title] = { doneByDow: [false,false,false,false,false,false,false] };
       }
       if (t.completed) {
         map[title].doneByDow[idx] = true;
       }
     }
 
-    const entries = Object.entries(map).sort((a, b) => a[0].localeCompare(b[0], 'ru'));
+    const entries = Object.entries(map).sort((a,b) => a[0].localeCompare(b[0], 'ru'));
 
     if (!entries.length) {
       body.innerHTML = `<div class="settings-hint">Пока нет задач для трекера.</div>`;
@@ -1846,7 +1833,7 @@
     }
   }
 
-  // ================== АРХИВ ==================
+  // ================== ARCHIVE ==================
   function renderArchive() {
     const user = getCurrentUser();
     if (!user) return;
@@ -1856,7 +1843,7 @@
     const tasks = getUserTasks(user).filter(t => t.completed);
     tasks.sort((a, b) => {
       if (a.date === b.date) return a.startMinutes - b.startMinutes;
-      return a.date < b.date ? 1 : -1; // новые выше
+      return a.date < b.date ? 1 : -1;
     });
 
     if (!tasks.length) {
@@ -1930,7 +1917,7 @@
     }
   }
 
-  // ================== ТАЙМЛАЙН ==================
+  // ================== TIMELINE ==================
   function renderTimeline() {
     const user = getCurrentUser();
     if (!user) return;
@@ -1945,23 +1932,24 @@
 
     const slotMinutes = state.slotMinutes || 60;
 
-    // высота строки шкалы под шаг
-    let slotHeight;
+    // нормальная высота слота
+    let normalSlotHeight;
     if (slotMinutes === 60) {
-      slotHeight = 96; // часовой шаг — высокий ряд
+      normalSlotHeight = 96;
     } else if (slotMinutes === 30) {
-      slotHeight = 64;
+      normalSlotHeight = 64;
     } else {
-      slotHeight = 44;
+      normalSlotHeight = 44;
     }
 
-    const minuteHeight = slotHeight / slotMinutes;
-    const minBlockHeight = slotHeight - 12; // чтобы влезли текст и кнопки
-
-    document.documentElement.style.setProperty('--slot-height', slotHeight + 'px');
+    const compressedSlotHeight = 20; // "сжатая" высота для прошедшего времени
+    const normalMinuteHeight = normalSlotHeight / slotMinutes;
+    const compressedMinuteHeight = compressedSlotHeight / slotMinutes;
+    const minBlockHeight = normalSlotHeight - 12;
 
     let visibleStart = (typeof settings.visibleStartMinutes === 'number') ? settings.visibleStartMinutes : 0;
     let visibleEnd = (typeof settings.visibleEndMinutes === 'number') ? settings.visibleEndMinutes : 24 * 60;
+    const compressPast = settings.compressPast === true;
 
     if (visibleStart < 0) visibleStart = 0;
     if (visibleEnd > 24 * 60) visibleEnd = 24 * 60;
@@ -1971,6 +1959,33 @@
     timeTrack.innerHTML = '';
 
     const dateKey = toDateInputValue(state.currentDate);
+    const todayKey = toDateInputValue(new Date());
+    const isToday = dateKey === todayKey;
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // функция перевода минут -> координата Y
+    function minuteToY(minute) {
+      if (minute <= visibleStart) return 0;
+      const clamped = Math.min(minute, visibleEnd);
+
+      if (!compressPast) {
+        return (clamped - visibleStart) * normalMinuteHeight;
+      }
+
+      if (!isToday || nowMinutes <= visibleStart) {
+        return (clamped - visibleStart) * normalMinuteHeight;
+      }
+
+      const pivot = Math.min(Math.max(nowMinutes, visibleStart), visibleEnd);
+      const pastMinutes = Math.max(0, Math.min(clamped, pivot) - visibleStart);
+      const futureMinutes = Math.max(0, clamped - pivot);
+
+      const pastHeight = pastMinutes * compressedMinuteHeight;
+      const futureHeight = futureMinutes * normalMinuteHeight;
+
+      return pastHeight + futureHeight;
+    }
 
     // Задачи на весь день
     if (alldayCard && alldayList) {
@@ -2045,8 +2060,13 @@
 
     // Сетка времени
     for (let m = visibleStart; m < visibleEnd; m += slotMinutes) {
+      const top = minuteToY(m);
+      const bottom = minuteToY(m + slotMinutes);
+      const segmentHeight = Math.max(10, bottom - top);
+
       const slot = document.createElement('div');
       slot.className = 'time-slot';
+      slot.style.height = segmentHeight + 'px';
 
       if (m % 60 === 0) {
         slot.innerHTML = `<span class="time-slot-label">${minutesToTimeStr(m)}</span>`;
@@ -2057,21 +2077,16 @@
 
       const line = document.createElement('div');
       line.className = 'time-line' + (m % 60 === 0 ? ' hour' : '');
-      line.style.top = ((m - visibleStart) * minuteHeight) + 'px';
+      line.style.top = top + 'px';
       timeTrack.appendChild(line);
     }
 
-    // Линия "сейчас"
-    const todayKey = toDateInputValue(new Date());
-    if (dateKey === todayKey) {
-      const now = new Date();
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      if (nowMinutes >= visibleStart && nowMinutes <= visibleEnd) {
-        const nowLine = document.createElement('div');
-        nowLine.className = 'now-line';
-        nowLine.style.top = ((nowMinutes - visibleStart) * minuteHeight) + 'px';
-        timeTrack.appendChild(nowLine);
-      }
+    // Линия текущего времени
+    if (isToday && nowMinutes >= visibleStart && nowMinutes <= visibleEnd) {
+      const nowLine = document.createElement('div');
+      nowLine.className = 'now-line';
+      nowLine.style.top = minuteToY(nowMinutes) + 'px';
+      timeTrack.appendChild(nowLine);
     }
 
     const dayTasks = tasks.filter(t =>
@@ -2080,6 +2095,8 @@
       t.startMinutes + t.durationMinutes > visibleStart &&
       t.startMinutes < visibleEnd
     );
+
+    const dragMinuteHeight = normalMinuteHeight;
 
     for (const task of dayTasks) {
       const block = document.createElement('div');
@@ -2095,13 +2112,9 @@
       const taskStartVisible = Math.max(task.startMinutes, visibleStart);
       const taskEndVisible = Math.min(task.startMinutes + task.durationMinutes, visibleEnd);
 
-      const top = (taskStartVisible - visibleStart) * minuteHeight;
-      let heightMinutes = Math.max(5, taskEndVisible - taskStartVisible);
-      let height = heightMinutes * minuteHeight;
-
-      if (height < minBlockHeight) {
-        height = minBlockHeight; // не даём блоку сжаться меньше строки
-      }
+      const top = minuteToY(taskStartVisible);
+      let height = minuteToY(taskEndVisible) - minuteToY(taskStartVisible);
+      if (height < minBlockHeight) height = minBlockHeight;
 
       block.style.top = top + 'px';
       block.style.height = height + 'px';
@@ -2109,12 +2122,7 @@
       let endMinutes = task.startMinutes + task.durationMinutes;
       if (endMinutes >= 24 * 60) endMinutes -= 24 * 60;
 
-      const statusHtml = task.completed
-        ? `<div class="task-status">Завершено</div>`
-        : '';
-
-      const showDone = !task.completed;
-      const showReturn = task.completed;
+      const statusHtml = task.completed ? `<div class="task-status">Завершено</div>` : '';
 
       block.innerHTML = `
         <div class="task-title">${task.title || 'Без названия'}</div>
@@ -2125,14 +2133,13 @@
         ${task.description ? `<div class="task-desc">${task.description}</div>` : ''}
         ${statusHtml}
         <div class="task-actions">
-          <button class="done" style="${showDone ? '' : 'display:none;'}">Вып.</button>
-          <button class="return" style="${showReturn ? '' : 'display:none;'}">Верн.</button>
+          <button class="${task.completed ? 'return' : 'done'}">${task.completed ? 'Верн.' : 'Вып.'}</button>
           <button class="edit">Ред.</button>
-          <button class="delete">Удалить</button>
+          <button class="delete delete">Удалить</button>
         </div>
       `;
 
-      attachDragHandlers(block, task, minuteHeight, slotMinutes, visibleStart, visibleEnd);
+      attachDragHandlers(block, task, dragMinuteHeight, slotMinutes, visibleStart, visibleEnd);
 
       const btnDelete = block.querySelector('.delete');
       btnDelete.onclick = (e) => {
@@ -2152,39 +2159,20 @@
         openTaskModal(task);
       };
 
-      const btnDone = block.querySelector('.done');
-      if (btnDone) {
-        btnDone.onclick = (e) => {
-          e.stopPropagation();
-          const allTasks = getUserTasks(user);
-          const idx = allTasks.findIndex(t => t.id === task.id);
-          if (idx >= 0) {
-            allTasks[idx].completed = true;
-            saveUserTasks(user, allTasks);
-            renderTimeline();
-            renderTracker();
-            renderArchive();
-            if (state.showCalendar) renderCalendar();
-          }
-        };
-      }
-
-      const btnReturn = block.querySelector('.return');
-      if (btnReturn) {
-        btnReturn.onclick = (e) => {
-          e.stopPropagation();
-          const allTasks = getUserTasks(user);
-          const idx = allTasks.findIndex(t => t.id === task.id);
-          if (idx >= 0) {
-            allTasks[idx].completed = false;
-            saveUserTasks(user, allTasks);
-            renderTimeline();
-            renderTracker();
-            renderArchive();
-            if (state.showCalendar) renderCalendar();
-          }
-        };
-      }
+      const btnToggle = block.querySelector('.done, .return');
+      btnToggle.onclick = (e) => {
+        e.stopPropagation();
+        const allTasks = getUserTasks(user);
+        const idx = allTasks.findIndex(t => t.id === task.id);
+        if (idx >= 0) {
+          allTasks[idx].completed = !allTasks[idx].completed;
+          saveUserTasks(user, allTasks);
+          renderTimeline();
+          renderTracker();
+          renderArchive();
+          if (state.showCalendar) renderCalendar();
+        }
+      };
 
       block.onclick = () => {
         openTaskModal(task);
@@ -2196,6 +2184,7 @@
 
   function attachDragHandlers(el, task, minuteHeight, slotMinutes, visibleStart, visibleEnd) {
     const user = getCurrentUser();
+    if (!user) return;
     let startY = 0;
     let originalStartMinutes = 0;
     let dragging = false;
@@ -2227,7 +2216,8 @@
         newStart = 24 * 60 - task.durationMinutes;
       }
 
-      el.style.top = ((newStart - visibleStart) * minuteHeight) + 'px';
+      const offset = (newStart - visibleStart) * minuteHeight;
+      el.style.top = offset + 'px';
 
       const timeEl = el.querySelector('.task-time');
       if (timeEl) {
@@ -2349,7 +2339,7 @@
     const year = repeatCalendarMonth.getFullYear();
     const month = repeatCalendarMonth.getMonth();
     const firstDay = new Date(year, month, 1);
-    const firstWeekday = (firstDay.getDay() + 6) % 7; // Пн=0
+    const firstWeekday = (firstDay.getDay() + 6) % 7;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysPrevMonth = new Date(year, month, 0).getDate();
 
@@ -2470,7 +2460,7 @@
       inputTaskDesc.value = '';
       inputTaskDate.value = currentDate;
       const now = new Date();
-      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
       inputTaskTime.value = timeStr;
       inputTaskDuration.value = 60;
       inputTaskColor.value = 'blue';
