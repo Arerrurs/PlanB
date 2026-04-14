@@ -1,220 +1,55 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
-const themeBtn = document.getElementById('themeBtn');
-const quotesList = document.getElementById('quotesList');
-const suggestionsList = document.getElementById('suggestionsList');
-const searchInput = document.getElementById('searchInput');
-const adminStatus = document.getElementById('adminStatus');
-const newQuoteForm = document.getElementById('newQuoteForm');
-const newQuoteText = document.getElementById('newQuoteText');
-const newQuoteStatus = document.getElementById('newQuoteStatus');
-const newQuoteStatusText = document.getElementById('newQuoteStatusText');
+const $ = (id) => document.getElementById(id);
+const els = {
+  adminThemeBtn: $('adminThemeBtn'),
+  adminStatus: $('adminStatus'),
+  accessDenied: $('accessDenied'),
+  adminContent: $('adminContent'),
+  statQuotes: $('statQuotes'),
+  statSuggestions: $('statSuggestions'),
+  statLikes: $('statLikes'),
+  statDislikes: $('statDislikes'),
+  newQuoteText: $('newQuoteText'),
+  addQuoteBtn: $('addQuoteBtn'),
+  adminMessage: $('adminMessage'),
+  quotesList: $('quotesList'),
+  suggestionsList: $('suggestionsList'),
+  reloadQuotesBtn: $('reloadQuotesBtn'),
+  reloadSuggestionsBtn: $('reloadSuggestionsBtn'),
+};
 
-const statQuotes = document.getElementById('statQuotes');
-const statApproved = document.getElementById('statApproved');
-const statPending = document.getElementById('statPending');
-const statLikes = document.getElementById('statLikes');
-const statDislikes = document.getElementById('statDislikes');
+let adminUser = null;
 
-let allQuotes = [];
-let allSuggestions = [];
-
-function setStatus(el, text = '', isError = false) {
+function setMessage(el, text = '', type = 'info') {
+  if (!el) return;
   el.textContent = text;
-  el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+  const colors = { info: 'var(--muted)', success: 'var(--success)', error: 'var(--danger)' };
+  el.style.color = colors[type] || colors.info;
 }
 
 function applyTheme(theme) {
   document.body.classList.toggle('dark', theme === 'dark');
-  localStorage.setItem('theme', theme);
+  localStorage.setItem('mudrost-theme', theme);
 }
 
 function initTheme() {
-  const saved = localStorage.getItem('theme');
-  if (saved) return applyTheme(saved);
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  applyTheme(prefersDark ? 'dark' : 'light');
-}
-
-async function ensureAdmin() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) {
-    window.location.href = './index.html';
-    return false;
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', session.user.id)
-    .single();
-
-  if (profile?.role !== 'admin') {
-    window.location.href = './index.html';
-    return false;
-  }
-
-  return true;
-}
-
-async function loadDashboard() {
-  setStatus(adminStatus, 'Загружаем данные...');
-
-  const [quotesRes, suggestionsRes] = await Promise.all([
-    supabase.from('quotes').select('*').order('created_at', { ascending: false }),
-    supabase.from('quote_suggestions').select('*').order('created_at', { ascending: false }),
-  ]);
-
-  if (quotesRes.error || suggestionsRes.error) {
-    setStatus(adminStatus, quotesRes.error?.message || suggestionsRes.error?.message || 'Ошибка загрузки.', true);
-    return;
-  }
-
-  allQuotes = quotesRes.data || [];
-  allSuggestions = suggestionsRes.data || [];
-
-  renderStats();
-  renderQuotes();
-  renderSuggestions();
-  setStatus(adminStatus, '');
-}
-
-function renderStats() {
-  const approved = allQuotes.filter(q => q.status === 'approved');
-  const pending = allQuotes.filter(q => q.status === 'pending');
-  statQuotes.textContent = String(allQuotes.length);
-  statApproved.textContent = String(approved.length);
-  statPending.textContent = String(pending.length + allSuggestions.filter(s => s.status === 'pending').length);
-  statLikes.textContent = String(allQuotes.reduce((sum, q) => sum + (q.like_count || 0), 0));
-  statDislikes.textContent = String(allQuotes.reduce((sum, q) => sum + (q.dislike_count || 0), 0));
-}
-
-function quoteCardTemplate(quote) {
-  return `
-    <article class="admin-item">
-      <textarea data-role="text">${escapeHtml(quote.text)}</textarea>
-      <div class="admin-item-meta">
-        <span>ID: ${quote.id}</span>
-        <span>👍 ${quote.like_count || 0}</span>
-        <span>👎 ${quote.dislike_count || 0}</span>
-      </div>
-      <div class="admin-actions">
-        <select data-role="status">
-          <option value="approved" ${quote.status === 'approved' ? 'selected' : ''}>Опубликована</option>
-          <option value="pending" ${quote.status === 'pending' ? 'selected' : ''}>На модерации</option>
-          <option value="rejected" ${quote.status === 'rejected' ? 'selected' : ''}>Отклонена</option>
-        </select>
-        <button class="secondary-btn" data-action="save">Сохранить</button>
-        <button class="danger-btn" data-action="delete">Удалить</button>
-      </div>
-    </article>
-  `;
-}
-
-function suggestionCardTemplate(item) {
-  return `
-    <article class="admin-item suggestion-item">
-      <p>${escapeHtml(item.text)}</p>
-      <div class="admin-item-meta">
-        <span>${item.user_id ? `Пользователь: ${item.user_id}` : 'Гость'}</span>
-        <span>Статус: ${item.status}</span>
-      </div>
-      <div class="admin-actions">
-        <button class="secondary-btn" data-action="approve">Одобрить</button>
-        <button class="danger-btn" data-action="reject">Отклонить</button>
-      </div>
-    </article>
-  `;
-}
-
-function renderQuotes() {
-  const query = searchInput.value.trim().toLowerCase();
-  const filtered = query
-    ? allQuotes.filter(q => q.text.toLowerCase().includes(query))
-    : allQuotes;
-
-  quotesList.innerHTML = filtered.length
-    ? filtered.map((quote) => `<div class="admin-row" data-id="${quote.id}">${quoteCardTemplate(quote)}</div>`).join('')
-    : '<p class="status">Ничего не найдено.</p>';
-}
-
-function renderSuggestions() {
-  const pending = allSuggestions.filter(item => item.status === 'pending');
-  suggestionsList.innerHTML = pending.length
-    ? pending.map((item) => `<div class="admin-row" data-id="${item.id}">${suggestionCardTemplate(item)}</div>`).join('')
-    : '<p class="status">Новых предложений нет.</p>';
-}
-
-async function saveQuote(id, row) {
-  const text = row.querySelector('[data-role="text"]').value.trim();
-  const status = row.querySelector('[data-role="status"]').value;
-
-  const { error } = await supabase.from('quotes').update({ text, status }).eq('id', id);
-  if (error) return setStatus(adminStatus, error.message, true);
-  await loadDashboard();
-}
-
-async function deleteQuote(id) {
-  const { error } = await supabase.from('quotes').delete().eq('id', id);
-  if (error) return setStatus(adminStatus, error.message, true);
-  await loadDashboard();
-}
-
-async function approveSuggestion(id) {
-  const item = allSuggestions.find(s => s.id === id);
-  if (!item) return;
-
-  const { error: insertError } = await supabase.from('quotes').insert({
-    text: item.text,
-    status: 'approved',
-    created_by: item.user_id,
-  });
-  if (insertError) return setStatus(adminStatus, insertError.message, true);
-
-  const { error: updateError } = await supabase
-    .from('quote_suggestions')
-    .update({ status: 'approved' })
-    .eq('id', id);
-
-  if (updateError) return setStatus(adminStatus, updateError.message, true);
-  await loadDashboard();
-}
-
-async function rejectSuggestion(id) {
-  const { error } = await supabase
-    .from('quote_suggestions')
-    .update({ status: 'rejected' })
-    .eq('id', id);
-  if (error) return setStatus(adminStatus, error.message, true);
-  await loadDashboard();
-}
-
-async function createQuote(event) {
-  event.preventDefault();
-  const text = newQuoteText.value.trim();
-  if (!text) return;
-
-  const { error } = await supabase.from('quotes').insert({
-    text,
-    status: newQuoteStatus.value,
-  });
-
-  if (error) {
-    setStatus(newQuoteStatusText, error.message, true);
-    return;
-  }
-
-  newQuoteText.value = '';
-  newQuoteStatus.value = 'approved';
-  setStatus(newQuoteStatusText, 'Цитата добавлена.');
-  await loadDashboard();
+  const saved = localStorage.getItem('mudrost-theme');
+  if (saved === 'dark' || saved === 'light') return applyTheme(saved);
+  applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 }
 
 function escapeHtml(str) {
-  return str
+  return String(str ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
@@ -222,35 +57,190 @@ function escapeHtml(str) {
     .replaceAll("'", '&#039;');
 }
 
-themeBtn.addEventListener('click', () => {
-  applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
-});
-searchInput.addEventListener('input', renderQuotes);
-newQuoteForm.addEventListener('submit', createQuote);
+async function checkAccess() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) {
+    els.adminStatus.textContent = 'Сначала войди на главной странице.';
+    els.accessDenied.classList.remove('hidden');
+    return false;
+  }
 
-quotesList.addEventListener('click', async (event) => {
-  const button = event.target.closest('button');
-  if (!button) return;
-  const row = event.target.closest('.admin-row');
-  const id = row?.dataset.id;
-  if (!id) return;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id,email,role')
+    .eq('id', user.id)
+    .maybeSingle();
 
-  if (button.dataset.action === 'save') await saveQuote(id, row);
-  if (button.dataset.action === 'delete') await deleteQuote(id);
-});
+  if (error || data?.role !== 'admin') {
+    els.adminStatus.textContent = 'Доступ только для администратора.';
+    els.accessDenied.classList.remove('hidden');
+    return false;
+  }
 
-suggestionsList.addEventListener('click', async (event) => {
-  const button = event.target.closest('button');
-  if (!button) return;
-  const row = event.target.closest('.admin-row');
-  const id = row?.dataset.id;
-  if (!id) return;
-
-  if (button.dataset.action === 'approve') await approveSuggestion(id);
-  if (button.dataset.action === 'reject') await rejectSuggestion(id);
-});
-
-initTheme();
-if (await ensureAdmin()) {
-  await loadDashboard();
+  adminUser = data;
+  els.adminStatus.textContent = `Администратор: ${data.email}`;
+  els.adminContent.classList.remove('hidden');
+  return true;
 }
+
+async function loadStats() {
+  const [quotesRes, suggestionsRes, likesRes, dislikesRes] = await Promise.all([
+    supabase.from('quotes').select('*', { count: 'exact', head: true }),
+    supabase.from('quote_suggestions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('quote_votes').select('*', { count: 'exact', head: true }).eq('vote', 'like'),
+    supabase.from('quote_votes').select('*', { count: 'exact', head: true }).eq('vote', 'dislike'),
+  ]);
+
+  els.statQuotes.textContent = String(quotesRes.count || 0);
+  els.statSuggestions.textContent = String(suggestionsRes.count || 0);
+  els.statLikes.textContent = String(likesRes.count || 0);
+  els.statDislikes.textContent = String(dislikesRes.count || 0);
+}
+
+function badgeClass(status) {
+  if (status === 'pending') return 'badge pending';
+  if (status === 'rejected') return 'badge rejected';
+  return 'badge';
+}
+
+async function loadQuotes() {
+  const { data, error } = await supabase
+    .from('quotes')
+    .select('id,text,status,created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    els.quotesList.innerHTML = '<div class="admin-item"><p>Не удалось загрузить цитаты.</p></div>';
+    return;
+  }
+
+  if (!data?.length) {
+    els.quotesList.innerHTML = '<div class="admin-item"><p>Пока пусто.</p></div>';
+    return;
+  }
+
+  els.quotesList.innerHTML = data.map((item) => `
+    <article class="admin-item">
+      <p>${escapeHtml(item.text)}</p>
+      <div class="admin-item-meta">
+        <span class="${badgeClass(item.status)}">${escapeHtml(item.status)}</span>
+        <span>${new Date(item.created_at).toLocaleString('ru-RU')}</span>
+      </div>
+      <div class="admin-item-actions">
+        <button class="text-btn" type="button" data-action="approve-quote" data-id="${item.id}">Опубликовать</button>
+        <button class="text-btn" type="button" data-action="reject-quote" data-id="${item.id}">Скрыть</button>
+        <button class="text-btn danger" type="button" data-action="delete-quote" data-id="${item.id}">Удалить</button>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function loadSuggestions() {
+  const { data, error } = await supabase
+    .from('quote_suggestions')
+    .select('id,text,status,created_at,user_id')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    els.suggestionsList.innerHTML = '<div class="admin-item"><p>Не удалось загрузить предложения.</p></div>';
+    return;
+  }
+
+  if (!data?.length) {
+    els.suggestionsList.innerHTML = '<div class="admin-item"><p>Пока нет предложений.</p></div>';
+    return;
+  }
+
+  els.suggestionsList.innerHTML = data.map((item) => `
+    <article class="admin-item">
+      <p>${escapeHtml(item.text)}</p>
+      <div class="admin-item-meta">
+        <span class="${badgeClass(item.status)}">${escapeHtml(item.status)}</span>
+        <span>${new Date(item.created_at).toLocaleString('ru-RU')}</span>
+      </div>
+      <div class="admin-item-actions">
+        <button class="text-btn primary" type="button" data-action="approve-suggestion" data-id="${item.id}">Принять</button>
+        <button class="text-btn" type="button" data-action="reject-suggestion" data-id="${item.id}">Отклонить</button>
+        <button class="text-btn danger" type="button" data-action="delete-suggestion" data-id="${item.id}">Удалить</button>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function refreshAll() {
+  await Promise.all([loadStats(), loadQuotes(), loadSuggestions()]);
+}
+
+async function addQuote() {
+  const text = els.newQuoteText.value.trim();
+  if (!text) return setMessage(els.adminMessage, 'Напиши текст цитаты.', 'error');
+  els.addQuoteBtn.disabled = true;
+  try {
+    const { error } = await supabase.from('quotes').insert({
+      text,
+      status: 'approved',
+      created_by: adminUser.id,
+    });
+    if (error) throw error;
+    els.newQuoteText.value = '';
+    setMessage(els.adminMessage, 'Цитата добавлена.', 'success');
+    await refreshAll();
+  } catch (error) {
+    console.error(error);
+    setMessage(els.adminMessage, error.message || 'Ошибка.', 'error');
+  } finally {
+    els.addQuoteBtn.disabled = false;
+  }
+}
+
+async function handleAdminAction(event) {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+  const action = button.dataset.action;
+  const id = button.dataset.id;
+  button.disabled = true;
+  try {
+    if (action === 'approve-quote') {
+      await supabase.from('quotes').update({ status: 'approved' }).eq('id', id);
+    }
+    if (action === 'reject-quote') {
+      await supabase.from('quotes').update({ status: 'rejected' }).eq('id', id);
+    }
+    if (action === 'delete-quote') {
+      await supabase.from('quotes').delete().eq('id', id);
+    }
+    if (action === 'approve-suggestion') {
+      const { data: suggestion } = await supabase.from('quote_suggestions').select('text').eq('id', id).maybeSingle();
+      if (suggestion?.text) {
+        await supabase.from('quotes').insert({ text: suggestion.text, status: 'approved', created_by: adminUser.id });
+      }
+      await supabase.from('quote_suggestions').update({ status: 'approved', reviewed_by: adminUser.id, reviewed_at: new Date().toISOString() }).eq('id', id);
+    }
+    if (action === 'reject-suggestion') {
+      await supabase.from('quote_suggestions').update({ status: 'rejected', reviewed_by: adminUser.id, reviewed_at: new Date().toISOString() }).eq('id', id);
+    }
+    if (action === 'delete-suggestion') {
+      await supabase.from('quote_suggestions').delete().eq('id', id);
+    }
+    await refreshAll();
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function init() {
+  initTheme();
+  els.adminThemeBtn.addEventListener('click', () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
+  els.addQuoteBtn.addEventListener('click', addQuote);
+  els.reloadQuotesBtn.addEventListener('click', loadQuotes);
+  els.reloadSuggestionsBtn.addEventListener('click', loadSuggestions);
+  els.quotesList.addEventListener('click', handleAdminAction);
+  els.suggestionsList.addEventListener('click', handleAdminAction);
+
+  const ok = await checkAccess();
+  if (!ok) return;
+  await refreshAll();
+}
+
+document.addEventListener('DOMContentLoaded', init);

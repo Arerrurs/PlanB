@@ -1,31 +1,42 @@
 # Мудрость дня
 
-Статический фронт для GitHub Pages + Supabase для базы и авторизации.
+Готовый статический фронт для GitHub Pages + Supabase.
 
-## Что внутри
-- `index.html` — главная страница
+## Что уже есть
+- главная страница с цитатой
+- вход и регистрация в модальном окне
+- личный кабинет в модальном окне
+- предложение цитаты в модальном окне
+- лайк / дизлайк без текста и счетчиков
+- админка
+- светлая и тёмная тема
+
+## Что проверить перед публикацией
+1. В Supabase выполни `schema.sql`.
+2. Зарегистрируй первый аккаунт через сайт.
+3. Выполни в SQL Editor:
+
+```sql
+update public.profiles
+set role = 'admin'
+where email = 'ТВОЯ_ПОЧТА';
+```
+
+4. В Supabase -> Authentication -> URL Configuration укажи:
+- Site URL: `https://arerrurs.github.io/PlanB/`
+- Redirect URLs:
+  - `https://arerrurs.github.io/PlanB/`
+  - `https://arerrurs.github.io/PlanB/index.html`
+  - `https://arerrurs.github.io/PlanB/admin.html`
+
+## Структура
+- `index.html` — главная
 - `admin.html` — админка
 - `styles.css` — общие стили
-- `js/app.js` — логика сайта
+- `js/app.js` — логика главной страницы
 - `js/admin.js` — логика админки
-- `js/config.js` — сюда вставляются ключи Supabase
-- `schema.sql` — SQL для таблиц, триггеров и политик
+- `js/config.js` — подключение Supabase
+- `schema.sql` — схема базы
 
-## Как запустить
-1. Создай проект в Supabase.
-2. В SQL Editor выполни `schema.sql`.
-3. В `Authentication > Providers` оставь Email auth включённым.
-4. В `Project Settings > API` скопируй `Project URL` и `anon public` key.
-5. Вставь их в `js/config.js`.
-6. Зарегистрируй первый аккаунт через сайт.
-7. В Supabase SQL Editor выполни:
-   ```sql
-   update public.profiles set role = 'admin' where email = 'твой@email';
-   ```
-8. Залей файлы в репозиторий GitHub.
-9. Включи GitHub Pages для ветки `main`.
-
-## Важно
-- В браузере используй только `anon` key.
-- `service_role` key в браузер класть нельзя.
-- Без настроенных RLS-политик данные будут плохо защищены.
+## Публикация на GitHub Pages
+Загрузи файлы в репозиторий и включи GitHub Pages на ветке с этими файлами.

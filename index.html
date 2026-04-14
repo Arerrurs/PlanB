@@ -11,95 +11,125 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <header class="site-header">
-    <div class="brand-block">
-      <span class="eyebrow">Минималистичная библиотека народного мрака</span>
-      <h1>Мудрость дня</h1>
-    </div>
-    <div class="header-actions">
-      <button class="icon-btn" id="themeBtn" title="Сменить тему" aria-label="Сменить тему">
-        <span class="material-symbols-outlined">contrast</span>
-      </button>
-      <a class="ghost-link hidden" id="adminLink" href="./admin.html">Админка</a>
-      <button class="ghost-link" id="authToggleBtn" type="button">Войти</button>
-      <button class="ghost-link hidden" id="logoutBtn" type="button">Выйти</button>
-    </div>
-  </header>
+  <main class="page">
+    <section class="quote-card">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">
+          <span class="material-symbols-outlined">auto_stories</span>
+        </div>
+        <div class="topbar-actions">
+          <button id="themeBtn" class="icon-btn" type="button" aria-label="Сменить тему" title="Сменить тему">
+            <span class="material-symbols-outlined">contrast</span>
+          </button>
+          <button id="accountBtn" class="icon-btn" type="button" aria-label="Войти" title="Войти">
+            <span class="material-symbols-outlined">person</span>
+          </button>
+        </div>
+      </header>
 
-  <main class="layout">
-    <section class="quote-card glass">
-      <div class="quote-toolbar">
-        <button class="icon-btn" id="refreshBtn" title="Другая цитата" aria-label="Другая цитата">
-          <span class="material-symbols-outlined">refresh</span>
-        </button>
-        <button class="icon-btn" id="copyBtn" title="Скопировать" aria-label="Скопировать">
-          <span class="material-symbols-outlined">content_copy</span>
-        </button>
-        <button class="icon-btn" id="shareBtn" title="Поделиться" aria-label="Поделиться">
-          <span class="material-symbols-outlined">ios_share</span>
-        </button>
+      <div class="quote-body">
+        <p id="quoteText" class="quote-text">Загрузка цитаты...</p>
+        <input id="quoteId" type="hidden" />
       </div>
 
-      <p class="quote-text" id="quoteText">Загрузка цитаты…</p>
-
-      <div class="quote-footer">
-        <div class="votes">
-          <button class="vote-btn" id="likeBtn" type="button">
+      <footer class="quote-actions">
+        <div class="left-actions">
+          <button id="refreshBtn" class="icon-btn" type="button" aria-label="Обновить цитату" title="Обновить">
+            <span class="material-symbols-outlined">refresh</span>
+          </button>
+          <button id="copyBtn" class="icon-btn" type="button" aria-label="Скопировать цитату" title="Скопировать">
+            <span class="material-symbols-outlined">content_copy</span>
+          </button>
+          <button id="shareBtn" class="icon-btn" type="button" aria-label="Поделиться цитатой" title="Поделиться">
+            <span class="material-symbols-outlined">ios_share</span>
+          </button>
+        </div>
+        <div class="right-actions">
+          <button id="likeBtn" class="icon-btn vote-btn" type="button" aria-label="Нравится" title="Нравится">
             <span class="material-symbols-outlined">thumb_up</span>
-            <span>Нравится</span>
-            <strong id="likeCount">0</strong>
           </button>
-          <button class="vote-btn" id="dislikeBtn" type="button">
+          <button id="dislikeBtn" class="icon-btn vote-btn" type="button" aria-label="Не нравится" title="Не нравится">
             <span class="material-symbols-outlined">thumb_down</span>
-            <span>Не нравится</span>
-            <strong id="dislikeCount">0</strong>
           </button>
         </div>
-        <p class="status" id="quoteStatus"></p>
-      </div>
+      </footer>
+
+      <div id="globalMessage" class="message" aria-live="polite"></div>
     </section>
-
-    <aside class="side-stack">
-      <section class="panel glass auth-panel" id="authPanel">
-        <div class="panel-heading">
-          <h2>Вход и регистрация</h2>
-          <p>Нужны, чтобы лайкать, дизлайкать и отправлять свои цитаты.</p>
-        </div>
-        <form id="authForm" class="stack-form">
-          <label>
-            <span>Email</span>
-            <input type="email" id="emailInput" placeholder="you@example.com" required />
-          </label>
-          <label>
-            <span>Пароль</span>
-            <input type="password" id="passwordInput" placeholder="Минимум 6 символов" required minlength="6" />
-          </label>
-          <div class="row-buttons">
-            <button class="primary-btn" type="submit" data-mode="login">Войти</button>
-            <button class="secondary-btn" type="button" id="signupBtn">Регистрация</button>
-          </div>
-          <p class="status" id="authStatus"></p>
-        </form>
-      </section>
-
-      <section class="panel glass">
-        <div class="panel-heading">
-          <h2>Предложить цитату</h2>
-          <p>Текст уйдёт на модерацию, а потом появится в общем списке.</p>
-        </div>
-        <form id="suggestForm" class="stack-form">
-          <label>
-            <span>Твоя мудрость</span>
-            <textarea id="suggestionInput" rows="5" placeholder="Вставь цитату сюда" required></textarea>
-          </label>
-          <button class="primary-btn" type="submit">Отправить</button>
-          <p class="status" id="suggestStatus"></p>
-        </form>
-      </section>
-    </aside>
   </main>
 
-  <script type="module" src="./js/config.js"></script>
+  <div id="authModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="authModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Вход</h2>
+        <button class="icon-btn" type="button" data-close="authModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="authForm" class="stack-form">
+          <label class="field">
+            <span>Почта</span>
+            <input id="email" type="email" autocomplete="email" placeholder="mail@example.com" />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+          </label>
+          <div class="row-actions">
+            <button id="signInBtn" class="text-btn primary" type="button">Войти</button>
+            <button id="signUpBtn" class="text-btn" type="button">Регистрация</button>
+          </div>
+          <div id="authMessage" class="message" aria-live="polite"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="accountModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="accountModal"></div>
+    <div class="modal-dialog slim">
+      <div class="modal-header">
+        <h2>Личный кабинет</h2>
+        <button class="icon-btn" type="button" data-close="accountModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body account-body">
+        <div class="account-email" id="userEmail">—</div>
+        <div class="stack-buttons">
+          <button id="openSuggestionBtn" class="text-btn primary" type="button">Предложить цитату</button>
+          <a id="adminLink" class="text-btn ghost hidden-link" href="./admin.html">Админка</a>
+          <button id="signOutBtn" class="text-btn danger" type="button">Выйти</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="suggestionModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="suggestionModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Предложить цитату</h2>
+        <button class="icon-btn" type="button" data-close="suggestionModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="suggestionForm" class="stack-form">
+          <label class="field">
+            <textarea id="suggestionText" rows="6" placeholder="Напиши цитату..."></textarea>
+          </label>
+          <div class="row-actions single">
+            <button id="suggestionBtn" class="text-btn primary" type="button">Отправить</button>
+          </div>
+          <div id="suggestionMessage" class="message" aria-live="polite"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>
