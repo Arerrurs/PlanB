@@ -4,457 +4,102 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Мудрость дня</title>
-
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Material Symbols -->
-  <link
-    rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
-  />
-
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f6f6f3;
-      --card: rgba(255, 255, 255, 0.72);
-      --card-border: rgba(20, 20, 20, 0.08);
-      --text: #1f1f1c;
-      --muted: #66665f;
-      --accent: #1f1f1c;
-      --shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
-      --hover: rgba(0, 0, 0, 0.05);
-    }
-
-    body.dark {
-      color-scheme: dark;
-      --bg: #121212;
-      --card: rgba(24, 24, 24, 0.78);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --text: #f2f2ee;
-      --muted: #aaaaa1;
-      --accent: #f2f2ee;
-      --shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
-      --hover: rgba(255, 255, 255, 0.08);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      min-height: 100%;
-    }
-
-    body {
-      font-family: "Spectral", serif;
-      background:
-        radial-gradient(circle at top, rgba(0,0,0,0.03), transparent 35%),
-        var(--bg);
-      color: var(--text);
-      transition: background 0.25s ease, color 0.25s ease;
-    }
-
-    .page {
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
-
-    .card {
-      width: min(100%, 720px);
-      background: var(--card);
-      border: 1px solid var(--card-border);
-      border-radius: 28px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      padding: 24px 24px 20px;
-      position: relative;
-    }
-
-    .topbar {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-
-    .icon-wrap {
-      position: relative;
-      display: inline-flex;
-    }
-
-    .icon-btn {
-      appearance: none;
-      border: none;
-      background: transparent;
-      color: var(--accent);
-      width: 40px;
-      height: 40px;
-      border-radius: 14px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: background 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
-      opacity: 0.92;
-    }
-
-    .icon-btn:hover {
-      background: var(--hover);
-      opacity: 1;
-    }
-
-    .icon-btn:active {
-      transform: scale(0.96);
-    }
-
-    .material-symbols-outlined {
-      font-size: 22px;
-      line-height: 1;
-      user-select: none;
-    }
-
-    .tooltip {
-      position: absolute;
-      bottom: calc(100% + 8px);
-      left: 50%;
-      transform: translateX(-50%) translateY(4px);
-      background: var(--text);
-      color: var(--bg);
-      font-family: system-ui, sans-serif;
-      font-size: 12px;
-      line-height: 1;
-      padding: 7px 9px;
-      border-radius: 10px;
-      white-space: nowrap;
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-      transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
-    }
-
-    .icon-wrap:hover .tooltip {
-      opacity: 1;
-      visibility: visible;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    .quote-box {
-      padding: 18px 6px 8px;
-      text-align: center;
-    }
-
-    .quote {
-      margin: 0;
-      font-size: clamp(28px, 4.4vw, 42px);
-      line-height: 1.35;
-      font-weight: 500;
-      letter-spacing: 0.01em;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .meta {
-      margin-top: 22px;
-      display: grid;
-      gap: 8px;
-      justify-items: center;
-      text-align: center;
-    }
-
-    .timer-label {
-      font-family: system-ui, sans-serif;
-      font-size: 13px;
-      color: var(--muted);
-      letter-spacing: 0.02em;
-    }
-
-    .timer {
-      font-family: system-ui, sans-serif;
-      font-size: 14px;
-      color: var(--text);
-    }
-
-    .status {
-      min-height: 18px;
-      font-family: system-ui, sans-serif;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    @media (max-width: 640px) {
-      .page {
-        padding: 16px;
-        align-items: center;
-      }
-
-      .card {
-        border-radius: 24px;
-        padding: 16px 16px 18px;
-      }
-
-      .topbar {
-        gap: 2px;
-        margin-bottom: 0;
-      }
-
-      .icon-btn {
-        width: 38px;
-        height: 38px;
-        border-radius: 12px;
-      }
-
-      .quote-box {
-        padding: 14px 2px 4px;
-      }
-
-      .quote {
-        font-size: clamp(24px, 6.8vw, 34px);
-        line-height: 1.4;
-      }
-
-      .meta {
-        margin-top: 18px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <main class="page">
-    <section class="card">
-      <div class="topbar">
-        <div class="icon-wrap">
-          <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
-            <span class="material-symbols-outlined">contrast</span>
-          </button>
-          <span class="tooltip">Тема</span>
-        </div>
+  <header class="site-header">
+    <div class="brand-block">
+      <span class="eyebrow">Минималистичная библиотека народного мрака</span>
+      <h1>Мудрость дня</h1>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="themeBtn" title="Сменить тему" aria-label="Сменить тему">
+        <span class="material-symbols-outlined">contrast</span>
+      </button>
+      <a class="ghost-link hidden" id="adminLink" href="./admin.html">Админка</a>
+      <button class="ghost-link" id="authToggleBtn" type="button">Войти</button>
+      <button class="ghost-link hidden" id="logoutBtn" type="button">Выйти</button>
+    </div>
+  </header>
 
-        <div class="icon-wrap">
-          <button class="icon-btn" id="refreshBtn" aria-label="Обновить цитату">
-            <span class="material-symbols-outlined">refresh</span>
-          </button>
-          <span class="tooltip">Обновить</span>
-        </div>
-
-        <div class="icon-wrap">
-          <button class="icon-btn" id="copyBtn" aria-label="Скопировать цитату">
-            <span class="material-symbols-outlined">content_copy</span>
-          </button>
-          <span class="tooltip">Копировать</span>
-        </div>
-
-        <div class="icon-wrap">
-          <button class="icon-btn" id="shareBtn" aria-label="Поделиться цитатой">
-            <span class="material-symbols-outlined">ios_share</span>
-          </button>
-          <span class="tooltip">Поделиться</span>
-        </div>
+  <main class="layout">
+    <section class="quote-card glass">
+      <div class="quote-toolbar">
+        <button class="icon-btn" id="refreshBtn" title="Другая цитата" aria-label="Другая цитата">
+          <span class="material-symbols-outlined">refresh</span>
+        </button>
+        <button class="icon-btn" id="copyBtn" title="Скопировать" aria-label="Скопировать">
+          <span class="material-symbols-outlined">content_copy</span>
+        </button>
+        <button class="icon-btn" id="shareBtn" title="Поделиться" aria-label="Поделиться">
+          <span class="material-symbols-outlined">ios_share</span>
+        </button>
       </div>
 
-      <div class="quote-box">
-        <p class="quote" id="quote">Загрузка...</p>
+      <p class="quote-text" id="quoteText">Загрузка цитаты…</p>
 
-        <div class="meta">
-          <div class="timer-label">Новая мудрость через</div>
-          <div class="timer" id="timer">—</div>
-          <div class="status" id="status"></div>
+      <div class="quote-footer">
+        <div class="votes">
+          <button class="vote-btn" id="likeBtn" type="button">
+            <span class="material-symbols-outlined">thumb_up</span>
+            <span>Нравится</span>
+            <strong id="likeCount">0</strong>
+          </button>
+          <button class="vote-btn" id="dislikeBtn" type="button">
+            <span class="material-symbols-outlined">thumb_down</span>
+            <span>Не нравится</span>
+            <strong id="dislikeCount">0</strong>
+          </button>
         </div>
+        <p class="status" id="quoteStatus"></p>
       </div>
     </section>
+
+    <aside class="side-stack">
+      <section class="panel glass auth-panel" id="authPanel">
+        <div class="panel-heading">
+          <h2>Вход и регистрация</h2>
+          <p>Нужны, чтобы лайкать, дизлайкать и отправлять свои цитаты.</p>
+        </div>
+        <form id="authForm" class="stack-form">
+          <label>
+            <span>Email</span>
+            <input type="email" id="emailInput" placeholder="you@example.com" required />
+          </label>
+          <label>
+            <span>Пароль</span>
+            <input type="password" id="passwordInput" placeholder="Минимум 6 символов" required minlength="6" />
+          </label>
+          <div class="row-buttons">
+            <button class="primary-btn" type="submit" data-mode="login">Войти</button>
+            <button class="secondary-btn" type="button" id="signupBtn">Регистрация</button>
+          </div>
+          <p class="status" id="authStatus"></p>
+        </form>
+      </section>
+
+      <section class="panel glass">
+        <div class="panel-heading">
+          <h2>Предложить цитату</h2>
+          <p>Текст уйдёт на модерацию, а потом появится в общем списке.</p>
+        </div>
+        <form id="suggestForm" class="stack-form">
+          <label>
+            <span>Твоя мудрость</span>
+            <textarea id="suggestionInput" rows="5" placeholder="Вставь цитату сюда" required></textarea>
+          </label>
+          <button class="primary-btn" type="submit">Отправить</button>
+          <p class="status" id="suggestStatus"></p>
+        </form>
+      </section>
+    </aside>
   </main>
 
-  <script>
-    const fallbackQuotes = [
-      "Кто рано встает — тот раньше всех на хуй идет",
-      "Не суйся в воду, если сам как говно по течению",
-      "Язык без костей — а пиздюлей отхватит твердых",
-      "Не все то золото, что в темноте блестит и шевелится",
-      "Кто много пиздит — тому потом нечем оправдываться",
-      "Где тонко — там и долбоеб найдется",
-      "Лучше поздно, чем вообще не понять, что ты долбоеб",
-      "С кем поведешься — от того и по ебалу получишь",
-      "Не буди лихо — оно и так уже в тебе живет",
-      "Чем громче орешь — тем быстрее в говно вляпаешься"
-    ];
-
-    let quotes = [...fallbackQuotes];
-
-    const quoteEl = document.getElementById("quote");
-    const timerEl = document.getElementById("timer");
-    const statusEl = document.getElementById("status");
-    const themeBtn = document.getElementById("themeBtn");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const copyBtn = document.getElementById("copyBtn");
-    const shareBtn = document.getElementById("shareBtn");
-
-    function getTodayKey() {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    }
-
-    function getSavedDailyQuote() {
-      try {
-        return JSON.parse(localStorage.getItem("dailyQuoteData") || "null");
-      } catch {
-        return null;
-      }
-    }
-
-    function saveDailyQuote(text) {
-      localStorage.setItem("dailyQuoteData", JSON.stringify({
-        date: getTodayKey(),
-        text
-      }));
-    }
-
-    function randomQuote(exceptText = "") {
-      const pool = quotes.filter(q => q && q.trim() && q !== exceptText);
-      if (pool.length === 0) return exceptText || fallbackQuotes[0];
-      return pool[Math.floor(Math.random() * pool.length)];
-    }
-
-    function showQuote(text) {
-      quoteEl.textContent = text;
-    }
-
-    function setStatus(text = "") {
-      statusEl.textContent = text;
-      if (!text) return;
-      clearTimeout(setStatus._timer);
-      setStatus._timer = setTimeout(() => {
-        statusEl.textContent = "";
-      }, 1800);
-    }
-
-    function setDailyQuote() {
-      const saved = getSavedDailyQuote();
-      const today = getTodayKey();
-
-      if (saved && saved.date === today && saved.text) {
-        showQuote(saved.text);
-        return;
-      }
-
-      const q = randomQuote();
-      saveDailyQuote(q);
-      showQuote(q);
-    }
-
-    function refreshCurrentQuote() {
-      const current = quoteEl.textContent.trim();
-      const next = randomQuote(current);
-      showQuote(next);
-      setStatus("Цитата обновлена");
-    }
-
-    async function loadQuotesFromFile() {
-      try {
-        const res = await fetch("quotes.txt", { cache: "no-store" });
-        if (!res.ok) throw new Error("quotes.txt не найден");
-
-        const text = await res.text();
-        const parsed = text
-          .split(/\r?\n/)
-          .map(line => line.trim())
-          .filter(Boolean);
-
-        if (parsed.length > 0) {
-          quotes = parsed;
-        }
-
-        setDailyQuote();
-      } catch (error) {
-        console.warn("Не удалось загрузить quotes.txt, используются встроенные цитаты.", error);
-        setDailyQuote();
-      }
-    }
-
-    function updateTimer() {
-      const now = new Date();
-      const nextMidnight = new Date(now);
-      nextMidnight.setHours(24, 0, 0, 0);
-
-      const diff = nextMidnight - now;
-      const hours = Math.floor(diff / 1000 / 60 / 60);
-      const minutes = Math.floor((diff / 1000 / 60) % 60);
-      const seconds = Math.floor((diff / 1000) % 60);
-
-      timerEl.textContent = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-    }
-
-    function applyTheme(theme) {
-      document.body.classList.toggle("dark", theme === "dark");
-      localStorage.setItem("theme", theme);
-    }
-
-    function initTheme() {
-      const savedTheme = localStorage.getItem("theme");
-      if (savedTheme === "dark" || savedTheme === "light") {
-        applyTheme(savedTheme);
-        return;
-      }
-
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      applyTheme(prefersDark ? "dark" : "light");
-    }
-
-    async function copyQuote() {
-      try {
-        await navigator.clipboard.writeText(quoteEl.textContent.trim());
-        setStatus("Скопировано");
-      } catch {
-        setStatus("Не удалось скопировать");
-      }
-    }
-
-    async function shareQuote() {
-      const text = quoteEl.textContent.trim();
-      const shareData = {
-        title: "Мудрость дня",
-        text,
-        url: window.location.href
-      };
-
-      if (navigator.share) {
-        try {
-          await navigator.share(shareData);
-          setStatus("Поделились");
-        } catch {
-          // пользователь мог просто закрыть окно шаринга
-        }
-      } else {
-        try {
-          await navigator.clipboard.writeText(`${text}\n\n${window.location.href}`);
-          setStatus("Ссылка и цитата скопированы");
-        } catch {
-          setStatus("Не удалось поделиться");
-        }
-      }
-    }
-
-    themeBtn.addEventListener("click", () => {
-      const isDark = document.body.classList.contains("dark");
-      applyTheme(isDark ? "light" : "dark");
-    });
-
-    refreshBtn.addEventListener("click", refreshCurrentQuote);
-    copyBtn.addEventListener("click", copyQuote);
-    shareBtn.addEventListener("click", shareQuote);
-
-    initTheme();
-    loadQuotesFromFile();
-    updateTimer();
-    setInterval(updateTimer, 1000);
-  </script>
+  <script type="module" src="./js/config.js"></script>
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>

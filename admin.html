@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Мудрость дня — Админка</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand-block">
+      <span class="eyebrow">Панель управления</span>
+      <h1>Админка «Мудрость дня»</h1>
+    </div>
+    <div class="header-actions">
+      <a class="ghost-link" href="./index.html">На сайт</a>
+      <button class="icon-btn" id="themeBtn" title="Сменить тему" aria-label="Сменить тему">
+        <span class="material-symbols-outlined">contrast</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="admin-layout">
+    <section class="stats-grid" id="statsGrid">
+      <article class="stat-card glass"><span>Всего цитат</span><strong id="statQuotes">0</strong></article>
+      <article class="stat-card glass"><span>Опубликовано</span><strong id="statApproved">0</strong></article>
+      <article class="stat-card glass"><span>На модерации</span><strong id="statPending">0</strong></article>
+      <article class="stat-card glass"><span>Лайки</span><strong id="statLikes">0</strong></article>
+      <article class="stat-card glass"><span>Дизлайки</span><strong id="statDislikes">0</strong></article>
+    </section>
+
+    <section class="admin-grid">
+      <section class="panel glass">
+        <div class="panel-heading">
+          <h2>Добавить цитату</h2>
+          <p>Можно сразу публиковать или отправлять в черновики.</p>
+        </div>
+        <form id="newQuoteForm" class="stack-form">
+          <label>
+            <span>Текст</span>
+            <textarea id="newQuoteText" rows="5" required></textarea>
+          </label>
+          <label>
+            <span>Статус</span>
+            <select id="newQuoteStatus">
+              <option value="approved">Опубликована</option>
+              <option value="pending">На модерации</option>
+              <option value="rejected">Отклонена</option>
+            </select>
+          </label>
+          <button class="primary-btn" type="submit">Сохранить</button>
+          <p class="status" id="newQuoteStatusText"></p>
+        </form>
+      </section>
+
+      <section class="panel glass">
+        <div class="panel-heading">
+          <h2>Предложения пользователей</h2>
+          <p>При одобрении запись переносится в библиотеку цитат.</p>
+        </div>
+        <div class="admin-list" id="suggestionsList"></div>
+      </section>
+    </section>
+
+    <section class="panel glass full-width-panel">
+      <div class="panel-heading split-heading">
+        <div>
+          <h2>Все цитаты</h2>
+          <p>Редактирование, статус и быстрый обзор статистики.</p>
+        </div>
+        <input id="searchInput" class="search-input" type="search" placeholder="Поиск по тексту" />
+      </div>
+      <div class="admin-list" id="quotesList"></div>
+      <p class="status" id="adminStatus"></p>
+    </section>
+  </main>
+
+  <script type="module" src="./js/config.js"></script>
+  <script type="module" src="./js/admin.js"></script>
+</body>
+</html>
