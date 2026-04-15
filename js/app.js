@@ -9,11 +9,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
+const REQUEST_TIMEOUT_MS = 8000;
+
 const state = {
   user: null,
   profile: null,
   currentQuote: null,
   currentVote: null,
+  booted: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -51,7 +54,11 @@ const els = {
 function setMessage(el, text = '', type = 'info') {
   if (!el) return;
   el.textContent = text;
-  const colors = { info: 'var(--muted)', success: 'var(--success)', error: 'var(--danger)' };
+  const colors = {
+    info: 'var(--muted)',
+    success: 'var(--success)',
+    error: 'var(--danger)',
+  };
   el.style.color = colors[type] || colors.info;
 }
 
@@ -61,8 +68,36 @@ function normalizeError(error) {
   if (msg.includes('email not confirmed')) return 'Подтверждение почты всё ещё включено в Supabase.';
   if (msg.includes('user already registered')) return 'Пользователь с такой почтой уже зарегистрирован.';
   if (msg.includes('network') || msg.includes('fetch')) return 'Не удалось подключиться к серверу.';
+  if (msg.includes('timed out')) return 'Сервер отвечает слишком долго.';
   if (msg.includes('duplicate key')) return 'Такая запись уже существует.';
+  if (msg.includes('row-level security')) return 'Недостаточно прав для этого действия.';
   return error?.message || 'Что-то пошло не так.';
+}
+
+function withTimeout(promise, label = 'request', ms = REQUEST_TIMEOUT_MS) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      const id = window.setTimeout(() => {
+        window.clearTimeout(id);
+        reject(new Error(`${label} timed out`));
+      }, ms);
+    }),
+  ]);
+}
+
+function clearStoredSession() {
+  try {
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (key.toLowerCase().includes('supabase')) {
+        localStorage.removeItem(key);
+      }
+    });
+    sessionStorage.clear();
+  } catch (error) {
+    console.warn('clearStoredSession:', error);
+  }
 }
 
 function applyTheme(theme) {
@@ -92,21 +127,30 @@ function closeModal(el) {
 
 function updateAccountButton() {
   const loggedIn = !!state.user;
+  if (!els.accountBtn) return;
   els.accountBtn.title = loggedIn ? 'Личный кабинет' : 'Войти';
   els.accountBtn.setAttribute('aria-label', loggedIn ? 'Личный кабинет' : 'Войти');
 }
 
 function updateAuthUI() {
   updateAccountButton();
-  els.userEmail.textContent = state.user?.email || '—';
-  els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
+  if (els.userEmail) els.userEmail.textContent = state.user?.email || '—';
+  if (els.adminLink) {
+    els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
+  }
 }
 
 function updateVoteButtons() {
-  els.likeBtn.classList.toggle('active', state.currentVote === 'like');
-  els.likeBtn.classList.toggle('like', state.currentVote === 'like');
-  els.dislikeBtn.classList.toggle('active', state.currentVote === 'dislike');
-  els.dislikeBtn.classList.toggle('dislike', state.currentVote === 'dislike');
+  if (els.likeBtn) {
+    els.likeBtn.classList.toggle('active', state.currentVote === 'like');
+    els.likeBtn.classList.toggle('like', state.currentVote === 'like');
+    els.likeBtn.disabled = false;
+  }
+  if (els.dislikeBtn) {
+    els.dislikeBtn.classList.toggle('active', state.currentVote === 'dislike');
+    els.dislikeBtn.classList.toggle('dislike', state.currentVote === 'dislike');
+    els.dislikeBtn.disabled = false;
+  }
 }
 
 function getIndexUrl() {
@@ -115,11 +159,18 @@ function getIndexUrl() {
 
 async function ensureProfileExists() {
   if (!state.user) return;
-  const { error } = await supabase.from('profiles').upsert(
-    { id: state.user.id, email: state.user.email },
-    { onConflict: 'id' }
-  );
-  if (error) console.error('profile upsert:', error);
+  try {
+    const { error } = await withTimeout(
+      supabase.from('profiles').upsert(
+        { id: state.user.id, email: state.user.email },
+        { onConflict: 'id' }
+      ),
+      'ensure profile'
+    );
+    if (error) console.warn('profile upsert:', error);
+  } catch (error) {
+    console.warn('profile upsert timeout/fail:', error);
+  }
 }
 
 async function loadProfile() {
@@ -129,17 +180,25 @@ async function loadProfile() {
     return;
   }
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id,email,role')
-    .eq('id', state.user.id)
-    .maybeSingle();
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('profiles')
+        .select('id,email,role')
+        .eq('id', state.user.id)
+        .maybeSingle(),
+      'load profile'
+    );
 
-  if (error) {
-    console.error('profile load:', error);
+    if (error) {
+      console.warn('profile load:', error);
+      state.profile = null;
+    } else {
+      state.profile = data || null;
+    }
+  } catch (error) {
+    console.warn('profile load timeout/fail:', error);
     state.profile = null;
-  } else {
-    state.profile = data || null;
   }
 
   updateAuthUI();
@@ -152,18 +211,26 @@ async function loadUserVote(quoteId) {
     return;
   }
 
-  const { data, error } = await supabase
-    .from('quote_votes')
-    .select('vote')
-    .eq('quote_id', quoteId)
-    .eq('user_id', state.user.id)
-    .maybeSingle();
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('quote_votes')
+        .select('vote')
+        .eq('quote_id', quoteId)
+        .eq('user_id', state.user.id)
+        .maybeSingle(),
+      'load vote'
+    );
 
-  if (error) {
-    console.error('vote load:', error);
+    if (error) {
+      console.warn('vote load:', error);
+      state.currentVote = null;
+    } else {
+      state.currentVote = data?.vote || null;
+    }
+  } catch (error) {
+    console.warn('vote load timeout/fail:', error);
     state.currentVote = null;
-  } else {
-    state.currentVote = data?.vote || null;
   }
 
   updateVoteButtons();
@@ -171,32 +238,40 @@ async function loadUserVote(quoteId) {
 
 async function loadRandomQuote() {
   setMessage(els.globalMessage, '');
-  els.quoteText.textContent = 'Загрузка цитаты...';
+  if (els.quoteText) els.quoteText.textContent = 'Загрузка цитаты...';
 
-  const { data, error } = await supabase
-    .from('quotes')
-    .select('id,text,status')
-    .eq('status', 'approved');
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('quotes')
+        .select('id,text,status')
+        .eq('status', 'approved'),
+      'load quotes'
+    );
 
-  if (error) {
-    console.error('quotes load:', error);
-    els.quoteText.textContent = 'Не удалось загрузить цитаты.';
-    return;
-  }
+    if (error) throw error;
 
-  if (!data?.length) {
+    if (!data?.length) {
+      state.currentQuote = null;
+      state.currentVote = null;
+      if (els.quoteText) els.quoteText.textContent = 'Пока нет опубликованных цитат.';
+      updateVoteButtons();
+      return;
+    }
+
+    const random = data[Math.floor(Math.random() * data.length)];
+    state.currentQuote = random;
+    if (els.quoteId) els.quoteId.value = random.id;
+    if (els.quoteText) els.quoteText.textContent = random.text;
+    await loadUserVote(random.id);
+  } catch (error) {
+    console.warn('quotes load:', error);
+    if (els.quoteText) els.quoteText.textContent = 'Не удалось загрузить цитаты.';
     state.currentQuote = null;
     state.currentVote = null;
-    els.quoteText.textContent = 'Пока нет опубликованных цитат.';
     updateVoteButtons();
-    return;
+    setMessage(els.globalMessage, normalizeError(error), 'error');
   }
-
-  const random = data[Math.floor(Math.random() * data.length)];
-  state.currentQuote = random;
-  els.quoteId.value = random.id;
-  els.quoteText.textContent = random.text;
-  await loadUserVote(random.id);
 }
 
 async function copyQuote() {
@@ -211,14 +286,15 @@ async function copyQuote() {
 
 async function shareQuote() {
   if (!state.currentQuote?.text) return;
-  const shareText = `«${state.currentQuote.text}»\n\n${window.location.href}`;
+  const shareData = {
+    title: 'Мудрость дня',
+    text: `«${state.currentQuote.text}»`,
+    url: window.location.href,
+  };
 
   if (navigator.share) {
     try {
-      await navigator.share({
-        title: 'Мудрость дня',
-        text: shareText,
-      });
+      await navigator.share(shareData);
       return;
     } catch {
       return;
@@ -226,7 +302,7 @@ async function shareQuote() {
   }
 
   try {
-    await navigator.clipboard.writeText(shareText);
+    await navigator.clipboard.writeText(`${shareData.text}\n\n${shareData.url}`);
     setMessage(els.globalMessage, 'Цитата и ссылка скопированы.', 'success');
   } catch {
     setMessage(els.globalMessage, 'Не удалось поделиться.', 'error');
@@ -234,8 +310,8 @@ async function shareQuote() {
 }
 
 async function signIn() {
-  const email = els.email.value.trim();
-  const password = els.password.value;
+  const email = els.email?.value.trim();
+  const password = els.password?.value || '';
   if (!email || !password) return setMessage(els.authMessage, 'Заполни почту и пароль.', 'error');
 
   els.signInBtn.disabled = true;
@@ -243,19 +319,26 @@ async function signIn() {
   setMessage(els.authMessage, 'Пробуем войти...');
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await withTimeout(
+      supabase.auth.signInWithPassword({ email, password }),
+      'sign in'
+    );
     if (error) throw error;
 
     state.user = data.user || data.session?.user || null;
-    await ensureProfileExists();
-    await loadProfile();
+
     closeModal(els.authModal);
-    els.authForm.reset();
+    els.authForm?.reset();
     setMessage(els.authMessage, '');
     setMessage(els.globalMessage, 'Вход выполнен.', 'success');
-    await loadUserVote(state.currentQuote?.id);
+
+    await Promise.allSettled([
+      ensureProfileExists(),
+      loadProfile(),
+      loadUserVote(state.currentQuote?.id),
+    ]);
   } catch (error) {
-    console.error('signIn:', error);
+    console.warn('signIn:', error);
     setMessage(els.authMessage, normalizeError(error), 'error');
   } finally {
     els.signInBtn.disabled = false;
@@ -264,8 +347,8 @@ async function signIn() {
 }
 
 async function signUp() {
-  const email = els.email.value.trim();
-  const password = els.password.value;
+  const email = els.email?.value.trim();
+  const password = els.password?.value || '';
   if (!email || !password) return setMessage(els.authMessage, 'Заполни почту и пароль.', 'error');
 
   els.signInBtn.disabled = true;
@@ -273,25 +356,30 @@ async function signUp() {
   setMessage(els.authMessage, 'Создаём аккаунт...');
 
   try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: getIndexUrl(),
-      },
-    });
+    const { data, error } = await withTimeout(
+      supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: getIndexUrl(),
+        },
+      }),
+      'sign up'
+    );
     if (error) throw error;
 
     state.user = data.user || data.session?.user || null;
 
     if (state.user && data.session) {
-      await ensureProfileExists();
-      await loadProfile();
       closeModal(els.authModal);
-      els.authForm.reset();
+      els.authForm?.reset();
       setMessage(els.authMessage, '');
       setMessage(els.globalMessage, 'Аккаунт создан.', 'success');
-      await loadUserVote(state.currentQuote?.id);
+      await Promise.allSettled([
+        ensureProfileExists(),
+        loadProfile(),
+        loadUserVote(state.currentQuote?.id),
+      ]);
     } else {
       setMessage(
         els.authMessage,
@@ -300,7 +388,7 @@ async function signUp() {
       );
     }
   } catch (error) {
-    console.error('signUp:', error);
+    console.warn('signUp:', error);
     setMessage(els.authMessage, normalizeError(error), 'error');
   } finally {
     els.signInBtn.disabled = false;
@@ -309,10 +397,16 @@ async function signUp() {
 }
 
 async function signOutUser() {
-  els.signOutBtn.disabled = true;
+  if (els.signOutBtn) els.signOutBtn.disabled = true;
   try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    await Promise.race([
+      supabase.auth.signOut({ scope: 'local' }),
+      new Promise((resolve) => window.setTimeout(resolve, 1500)),
+    ]);
+  } catch (error) {
+    console.warn('signOut:', error);
+  } finally {
+    clearStoredSession();
     state.user = null;
     state.profile = null;
     state.currentVote = null;
@@ -320,11 +414,7 @@ async function signOutUser() {
     updateVoteButtons();
     closeModal(els.accountModal);
     setMessage(els.globalMessage, 'Вы вышли из аккаунта.', 'success');
-  } catch (error) {
-    console.error('signOut:', error);
-    setMessage(els.globalMessage, normalizeError(error), 'error');
-  } finally {
-    els.signOutBtn.disabled = false;
+    if (els.signOutBtn) els.signOutBtn.disabled = false;
   }
 }
 
@@ -341,17 +431,23 @@ async function vote(voteType) {
 
   try {
     if (state.currentVote === voteType) {
-      const { error } = await supabase
-        .from('quote_votes')
-        .delete()
-        .eq('quote_id', state.currentQuote.id)
-        .eq('user_id', state.user.id);
+      const { error } = await withTimeout(
+        supabase
+          .from('quote_votes')
+          .delete()
+          .eq('quote_id', state.currentQuote.id)
+          .eq('user_id', state.user.id),
+        'delete vote'
+      );
       if (error) throw error;
       state.currentVote = null;
     } else {
-      const { error } = await supabase.from('quote_votes').upsert(
-        { quote_id: state.currentQuote.id, user_id: state.user.id, vote: voteType },
-        { onConflict: 'quote_id,user_id' }
+      const { error } = await withTimeout(
+        supabase.from('quote_votes').upsert(
+          { quote_id: state.currentQuote.id, user_id: state.user.id, vote: voteType },
+          { onConflict: 'quote_id,user_id' }
+        ),
+        'save vote'
       );
       if (error) throw error;
       state.currentVote = voteType;
@@ -359,7 +455,7 @@ async function vote(voteType) {
 
     updateVoteButtons();
   } catch (error) {
-    console.error('vote:', error);
+    console.warn('vote:', error);
     setMessage(els.globalMessage, normalizeError(error), 'error');
   } finally {
     els.likeBtn.disabled = false;
@@ -368,30 +464,43 @@ async function vote(voteType) {
 }
 
 async function sendSuggestion() {
-  const text = els.suggestionText.value.trim();
+  const text = els.suggestionText?.value.trim();
   if (!text) return setMessage(els.suggestionMessage, 'Напиши цитату.', 'error');
 
   els.suggestionBtn.disabled = true;
   setMessage(els.suggestionMessage, 'Отправляем...');
 
   try {
-    const payload = {
-      text,
-      user_id: state.user?.id || null,
-      status: 'pending',
-    };
+    let result = await withTimeout(
+      supabase.from('quote_suggestions').insert({
+        text,
+        user_id: state.user?.id || null,
+        status: 'pending',
+      }),
+      'save suggestion'
+    );
 
-    const { error } = await supabase.from('quote_suggestions').insert(payload);
-    if (error) throw error;
+    if (result.error && state.user) {
+      result = await withTimeout(
+        supabase.from('quote_suggestions').insert({
+          text,
+          user_id: null,
+          status: 'pending',
+        }),
+        'save suggestion fallback'
+      );
+    }
 
-    els.suggestionForm.reset();
+    if (result.error) throw result.error;
+
+    els.suggestionForm?.reset();
     setMessage(els.suggestionMessage, 'Отправлено.', 'success');
-    setTimeout(() => {
+    window.setTimeout(() => {
       closeModal(els.suggestionModal);
       setMessage(els.suggestionMessage, '');
     }, 700);
   } catch (error) {
-    console.error('suggestion:', error);
+    console.warn('suggestion:', error);
     setMessage(els.suggestionMessage, normalizeError(error), 'error');
   } finally {
     els.suggestionBtn.disabled = false;
@@ -399,18 +508,26 @@ async function sendSuggestion() {
 }
 
 async function initSession() {
-  const {
-    data: { session },
-    error,
-  } = await supabase.auth.getSession();
+  try {
+    const {
+      data: { session },
+      error,
+    } = await withTimeout(supabase.auth.getSession(), 'get session');
 
-  if (error) console.error('getSession:', error);
+    if (error) console.warn('getSession:', error);
 
-  state.user = session?.user || null;
-  if (state.user) {
-    await ensureProfileExists();
-    await loadProfile();
-  } else {
+    state.user = session?.user || null;
+    updateAuthUI();
+
+    if (state.user) {
+      await Promise.allSettled([ensureProfileExists(), loadProfile()]);
+    } else {
+      state.profile = null;
+      updateAuthUI();
+    }
+  } catch (error) {
+    console.warn('initSession:', error);
+    state.user = null;
     state.profile = null;
     updateAuthUI();
   }
@@ -431,42 +548,43 @@ function bindModalEvents() {
 }
 
 function bindEvents() {
-  els.themeBtn.addEventListener('click', () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
-  els.refreshBtn.addEventListener('click', loadRandomQuote);
-  els.copyBtn.addEventListener('click', copyQuote);
-  els.shareBtn.addEventListener('click', shareQuote);
-  els.likeBtn.addEventListener('click', () => vote('like'));
-  els.dislikeBtn.addEventListener('click', () => vote('dislike'));
+  els.themeBtn?.addEventListener('click', () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
+  els.refreshBtn?.addEventListener('click', loadRandomQuote);
+  els.copyBtn?.addEventListener('click', copyQuote);
+  els.shareBtn?.addEventListener('click', shareQuote);
+  els.likeBtn?.addEventListener('click', () => vote('like'));
+  els.dislikeBtn?.addEventListener('click', () => vote('dislike'));
 
-  els.accountBtn.addEventListener('click', () => {
-    if (state.user) {
-      openModal(els.accountModal);
-    } else {
-      openModal(els.authModal);
-    }
+  els.accountBtn?.addEventListener('click', () => {
+    if (state.user) openModal(els.accountModal);
+    else openModal(els.authModal);
   });
 
-  els.signInBtn.addEventListener('click', signIn);
-  els.signUpBtn.addEventListener('click', signUp);
-  els.signOutBtn.addEventListener('click', signOutUser);
-  els.openSuggestionBtn.addEventListener('click', () => {
+  els.signInBtn?.addEventListener('click', signIn);
+  els.signUpBtn?.addEventListener('click', signUp);
+  els.signOutBtn?.addEventListener('click', signOutUser);
+  els.openSuggestionBtn?.addEventListener('click', () => {
     closeModal(els.accountModal);
     openModal(els.suggestionModal);
   });
-  els.suggestionBtn.addEventListener('click', sendSuggestion);
+  els.suggestionBtn?.addEventListener('click', sendSuggestion);
 
-  els.authForm.addEventListener('submit', (e) => e.preventDefault());
-  els.suggestionForm.addEventListener('submit', (e) => e.preventDefault());
-  els.password.addEventListener('keydown', (e) => {
+  els.authForm?.addEventListener('submit', (e) => e.preventDefault());
+  els.suggestionForm?.addEventListener('submit', (e) => e.preventDefault());
+  els.password?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') signIn();
   });
 
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     state.user = session?.user || null;
+    if (!state.booted && event === 'INITIAL_SESSION') return;
+
     if (state.user) {
-      await ensureProfileExists();
-      await loadProfile();
-      await loadUserVote(state.currentQuote?.id);
+      Promise.allSettled([
+        ensureProfileExists(),
+        loadProfile(),
+        loadUserVote(state.currentQuote?.id),
+      ]);
     } else {
       state.profile = null;
       state.currentVote = null;
@@ -480,8 +598,15 @@ async function init() {
   initTheme();
   bindModalEvents();
   bindEvents();
-  await initSession();
-  await loadRandomQuote();
+  updateAuthUI();
+  updateVoteButtons();
+
+  await Promise.allSettled([
+    initSession(),
+    loadRandomQuote(),
+  ]);
+
+  state.booted = true;
 }
 
 document.addEventListener('DOMContentLoaded', init);
