@@ -25,6 +25,9 @@
           <button id="adminThemeBtn" class="icon-btn" type="button" aria-label="Сменить тему" title="Сменить тему">
             <span class="material-symbols-outlined">contrast</span>
           </button>
+          <button id="refreshAdminBtn" class="icon-btn" type="button" aria-label="Обновить всё" title="Обновить всё">
+            <span class="material-symbols-outlined">refresh</span>
+          </button>
         </div>
       </header>
 
@@ -69,10 +72,15 @@
 
         <section class="panel">
           <div class="panel-head">
+            <h2>Пользователи</h2>
+          </div>
+          <div id="usersSummary" class="admin-subtitle panel-subtitle">Всего: 0</div>
+          <div id="usersList" class="admin-list compact-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
             <h2>Цитаты</h2>
-            <button id="reloadQuotesBtn" class="icon-btn" type="button" aria-label="Обновить" title="Обновить">
-              <span class="material-symbols-outlined">refresh</span>
-            </button>
           </div>
           <div id="quotesList" class="admin-list"></div>
         </section>
@@ -80,15 +88,37 @@
         <section class="panel">
           <div class="panel-head">
             <h2>Предложенные цитаты</h2>
-            <button id="reloadSuggestionsBtn" class="icon-btn" type="button" aria-label="Обновить" title="Обновить">
-              <span class="material-symbols-outlined">refresh</span>
-            </button>
           </div>
           <div id="suggestionsList" class="admin-list"></div>
         </section>
       </div>
     </section>
   </main>
+
+  <div id="editQuoteModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="editQuoteModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Редактировать цитату</h2>
+        <button class="icon-btn" type="button" data-close="editQuoteModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="editQuoteForm" class="stack-form">
+          <input id="editQuoteId" type="hidden" />
+          <label class="field">
+            <textarea id="editQuoteText" rows="6" placeholder="Текст цитаты..."></textarea>
+          </label>
+          <div class="row-actions">
+            <button id="saveQuoteBtn" class="text-btn primary" type="button">Сохранить</button>
+            <button id="cancelEditBtn" class="text-btn" type="button" data-close="editQuoteModal">Отмена</button>
+          </div>
+          <div id="editQuoteMessage" class="message"></div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="./js/admin.js"></script>
 </body>

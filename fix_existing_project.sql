@@ -1,44 +1,6 @@
 create extension if not exists pgcrypto;
 
-create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text,
-  role text not null default 'user' check (role in ('user', 'admin')),
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.quotes (
-  id uuid primary key default gen_random_uuid(),
-  text text not null,
-  status text not null default 'approved' check (status in ('approved', 'pending', 'rejected')),
-  created_by uuid references public.profiles(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists public.quote_votes (
-  id uuid primary key default gen_random_uuid(),
-  quote_id uuid not null references public.quotes(id) on delete cascade,
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  vote text not null check (vote in ('like', 'dislike')),
-  created_at timestamptz not null default now(),
-  unique (quote_id, user_id)
-);
-
-create table if not exists public.quote_suggestions (
-  id uuid primary key default gen_random_uuid(),
-  text text not null,
-  user_id uuid references public.profiles(id) on delete set null,
-  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
-  reviewed_by uuid references public.profiles(id) on delete set null,
-  reviewed_at timestamptz,
-  created_at timestamptz not null default now()
-);
-
-alter table public.profiles enable row level security;
-alter table public.quotes enable row level security;
-alter table public.quote_votes enable row level security;
-alter table public.quote_suggestions enable row level security;
+alter table public.quotes add column if not exists updated_at timestamptz not null default now();
 
 create or replace function public.is_admin(uid uuid default auth.uid())
 returns boolean

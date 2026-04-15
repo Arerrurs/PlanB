@@ -58,9 +58,10 @@ function setMessage(el, text = '', type = 'info') {
 function normalizeError(error) {
   const msg = String(error?.message || error || '').toLowerCase();
   if (msg.includes('invalid login credentials')) return 'Неверная почта или пароль.';
-  if (msg.includes('email not confirmed')) return 'Подтверди почту через письмо.';
+  if (msg.includes('email not confirmed')) return 'Подтверждение почты всё ещё включено в Supabase.';
   if (msg.includes('user already registered')) return 'Пользователь с такой почтой уже зарегистрирован.';
   if (msg.includes('network') || msg.includes('fetch')) return 'Не удалось подключиться к серверу.';
+  if (msg.includes('duplicate key')) return 'Такая запись уже существует.';
   return error?.message || 'Что-то пошло не так.';
 }
 
@@ -98,11 +99,7 @@ function updateAccountButton() {
 function updateAuthUI() {
   updateAccountButton();
   els.userEmail.textContent = state.user?.email || '—';
-  if (state.profile?.role === 'admin') {
-    els.adminLink.style.display = 'block';
-  } else {
-    els.adminLink.style.display = 'none';
-  }
+  els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
 }
 
 function updateVoteButtons() {
@@ -110,6 +107,10 @@ function updateVoteButtons() {
   els.likeBtn.classList.toggle('like', state.currentVote === 'like');
   els.dislikeBtn.classList.toggle('active', state.currentVote === 'dislike');
   els.dislikeBtn.classList.toggle('dislike', state.currentVote === 'dislike');
+}
+
+function getIndexUrl() {
+  return new URL('./index.html', window.location.href).href;
 }
 
 async function ensureProfileExists() {
@@ -127,17 +128,20 @@ async function loadProfile() {
     updateAuthUI();
     return;
   }
+
   const { data, error } = await supabase
     .from('profiles')
     .select('id,email,role')
     .eq('id', state.user.id)
     .maybeSingle();
+
   if (error) {
-    console.error(error);
+    console.error('profile load:', error);
     state.profile = null;
   } else {
     state.profile = data || null;
   }
+
   updateAuthUI();
 }
 
@@ -147,31 +151,35 @@ async function loadUserVote(quoteId) {
     updateVoteButtons();
     return;
   }
+
   const { data, error } = await supabase
     .from('quote_votes')
     .select('vote')
     .eq('quote_id', quoteId)
     .eq('user_id', state.user.id)
     .maybeSingle();
+
   if (error) {
-    console.error(error);
+    console.error('vote load:', error);
     state.currentVote = null;
   } else {
     state.currentVote = data?.vote || null;
   }
+
   updateVoteButtons();
 }
 
 async function loadRandomQuote() {
   setMessage(els.globalMessage, '');
   els.quoteText.textContent = 'Загрузка цитаты...';
+
   const { data, error } = await supabase
     .from('quotes')
     .select('id,text,status')
     .eq('status', 'approved');
 
   if (error) {
-    console.error(error);
+    console.error('quotes load:', error);
     els.quoteText.textContent = 'Не удалось загрузить цитаты.';
     return;
   }
@@ -203,22 +211,23 @@ async function copyQuote() {
 
 async function shareQuote() {
   if (!state.currentQuote?.text) return;
-  const payload = {
-    title: 'Мудрость дня',
-    text: state.currentQuote.text,
-    url: window.location.href,
-  };
+  const shareText = `«${state.currentQuote.text}»\n\n${window.location.href}`;
+
   if (navigator.share) {
     try {
-      await navigator.share(payload);
+      await navigator.share({
+        title: 'Мудрость дня',
+        text: shareText,
+      });
       return;
     } catch {
       return;
     }
   }
+
   try {
-    await navigator.clipboard.writeText(`${state.currentQuote.text}\n\n${window.location.href}`);
-    setMessage(els.globalMessage, 'Ссылка и цитата скопированы.', 'success');
+    await navigator.clipboard.writeText(shareText);
+    setMessage(els.globalMessage, 'Цитата и ссылка скопированы.', 'success');
   } catch {
     setMessage(els.globalMessage, 'Не удалось поделиться.', 'error');
   }
@@ -228,12 +237,15 @@ async function signIn() {
   const email = els.email.value.trim();
   const password = els.password.value;
   if (!email || !password) return setMessage(els.authMessage, 'Заполни почту и пароль.', 'error');
+
   els.signInBtn.disabled = true;
   els.signUpBtn.disabled = true;
   setMessage(els.authMessage, 'Пробуем войти...');
+
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+
     state.user = data.user || data.session?.user || null;
     await ensureProfileExists();
     await loadProfile();
@@ -243,7 +255,7 @@ async function signIn() {
     setMessage(els.globalMessage, 'Вход выполнен.', 'success');
     await loadUserVote(state.currentQuote?.id);
   } catch (error) {
-    console.error(error);
+    console.error('signIn:', error);
     setMessage(els.authMessage, normalizeError(error), 'error');
   } finally {
     els.signInBtn.disabled = false;
@@ -255,25 +267,40 @@ async function signUp() {
   const email = els.email.value.trim();
   const password = els.password.value;
   if (!email || !password) return setMessage(els.authMessage, 'Заполни почту и пароль.', 'error');
+
   els.signInBtn.disabled = true;
   els.signUpBtn.disabled = true;
   setMessage(els.authMessage, 'Создаём аккаунт...');
+
   try {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: getIndexUrl(),
+      },
+    });
     if (error) throw error;
+
     state.user = data.user || data.session?.user || null;
-    if (state.user) {
+
+    if (state.user && data.session) {
       await ensureProfileExists();
       await loadProfile();
       closeModal(els.authModal);
       els.authForm.reset();
+      setMessage(els.authMessage, '');
       setMessage(els.globalMessage, 'Аккаунт создан.', 'success');
       await loadUserVote(state.currentQuote?.id);
     } else {
-      setMessage(els.authMessage, 'Аккаунт создан. Подтверди почту через письмо.', 'success');
+      setMessage(
+        els.authMessage,
+        'Аккаунт создан. Если подтверждение почты включено в Supabase — проверь письмо.',
+        'success'
+      );
     }
   } catch (error) {
-    console.error(error);
+    console.error('signUp:', error);
     setMessage(els.authMessage, normalizeError(error), 'error');
   } finally {
     els.signInBtn.disabled = false;
@@ -294,7 +321,7 @@ async function signOutUser() {
     closeModal(els.accountModal);
     setMessage(els.globalMessage, 'Вы вышли из аккаунта.', 'success');
   } catch (error) {
-    console.error(error);
+    console.error('signOut:', error);
     setMessage(els.globalMessage, normalizeError(error), 'error');
   } finally {
     els.signOutBtn.disabled = false;
@@ -308,8 +335,10 @@ async function vote(voteType) {
     return;
   }
   if (!state.currentQuote?.id) return;
+
   els.likeBtn.disabled = true;
   els.dislikeBtn.disabled = true;
+
   try {
     if (state.currentVote === voteType) {
       const { error } = await supabase
@@ -327,9 +356,10 @@ async function vote(voteType) {
       if (error) throw error;
       state.currentVote = voteType;
     }
+
     updateVoteButtons();
   } catch (error) {
-    console.error(error);
+    console.error('vote:', error);
     setMessage(els.globalMessage, normalizeError(error), 'error');
   } finally {
     els.likeBtn.disabled = false;
@@ -340,20 +370,28 @@ async function vote(voteType) {
 async function sendSuggestion() {
   const text = els.suggestionText.value.trim();
   if (!text) return setMessage(els.suggestionMessage, 'Напиши цитату.', 'error');
+
   els.suggestionBtn.disabled = true;
   setMessage(els.suggestionMessage, 'Отправляем...');
+
   try {
-    const { error } = await supabase.from('quote_suggestions').insert({
+    const payload = {
       text,
-      user_id: state.user?.id ?? null,
+      user_id: state.user?.id || null,
       status: 'pending',
-    });
+    };
+
+    const { error } = await supabase.from('quote_suggestions').insert(payload);
     if (error) throw error;
+
     els.suggestionForm.reset();
     setMessage(els.suggestionMessage, 'Отправлено.', 'success');
-    setTimeout(() => closeModal(els.suggestionModal), 500);
+    setTimeout(() => {
+      closeModal(els.suggestionModal);
+      setMessage(els.suggestionMessage, '');
+    }, 700);
   } catch (error) {
-    console.error(error);
+    console.error('suggestion:', error);
     setMessage(els.suggestionMessage, normalizeError(error), 'error');
   } finally {
     els.suggestionBtn.disabled = false;
@@ -361,41 +399,53 @@ async function sendSuggestion() {
 }
 
 async function initSession() {
-  const { data: { session }, error } = await supabase.auth.getSession();
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
   if (error) console.error('getSession:', error);
+
   state.user = session?.user || null;
   if (state.user) {
     await ensureProfileExists();
     await loadProfile();
   } else {
+    state.profile = null;
     updateAuthUI();
   }
 }
 
-function bindModalHandlers() {
-  document.querySelectorAll('[data-close]').forEach((btn) => {
-    btn.addEventListener('click', () => closeModal($(btn.dataset.close)));
+function bindModalEvents() {
+  document.querySelectorAll('[data-close]').forEach((el) => {
+    el.addEventListener('click', () => closeModal(document.getElementById(el.dataset.close)));
   });
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      closeModal(els.authModal);
-      closeModal(els.accountModal);
-      closeModal(els.suggestionModal);
+      document.querySelectorAll('.modal').forEach((modal) => {
+        if (!modal.hidden) closeModal(modal);
+      });
     }
   });
 }
 
 function bindEvents() {
-  bindModalHandlers();
-  els.authForm?.addEventListener('submit', (e) => e.preventDefault());
-  els.suggestionForm?.addEventListener('submit', (e) => e.preventDefault());
   els.themeBtn.addEventListener('click', () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
-  els.accountBtn.addEventListener('click', () => state.user ? openModal(els.accountModal) : openModal(els.authModal));
   els.refreshBtn.addEventListener('click', loadRandomQuote);
   els.copyBtn.addEventListener('click', copyQuote);
   els.shareBtn.addEventListener('click', shareQuote);
   els.likeBtn.addEventListener('click', () => vote('like'));
   els.dislikeBtn.addEventListener('click', () => vote('dislike'));
+
+  els.accountBtn.addEventListener('click', () => {
+    if (state.user) {
+      openModal(els.accountModal);
+    } else {
+      openModal(els.authModal);
+    }
+  });
+
   els.signInBtn.addEventListener('click', signIn);
   els.signUpBtn.addEventListener('click', signUp);
   els.signOutBtn.addEventListener('click', signOutUser);
@@ -404,6 +454,9 @@ function bindEvents() {
     openModal(els.suggestionModal);
   });
   els.suggestionBtn.addEventListener('click', sendSuggestion);
+
+  els.authForm.addEventListener('submit', (e) => e.preventDefault());
+  els.suggestionForm.addEventListener('submit', (e) => e.preventDefault());
   els.password.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') signIn();
   });
@@ -425,6 +478,7 @@ function bindEvents() {
 
 async function init() {
   initTheme();
+  bindModalEvents();
   bindEvents();
   await initSession();
   await loadRandomQuote();
