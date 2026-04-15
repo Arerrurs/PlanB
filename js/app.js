@@ -9,7 +9,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 9000;
 
 const state = {
   user: null,
@@ -36,6 +36,7 @@ const els = {
   accountModal: $('accountModal'),
   suggestionModal: $('suggestionModal'),
   favoritesModal: $('favoritesModal'),
+  dislikedModal: $('dislikedModal'),
 
   authForm: $('authForm'),
   email: $('email'),
@@ -49,14 +50,19 @@ const els = {
   adminLink: $('adminLink'),
   openSuggestionBtn: $('openSuggestionBtn'),
   openFavoritesBtn: $('openFavoritesBtn'),
+  openDislikedBtn: $('openDislikedBtn'),
+  showOnlyLikedToggle: $('showOnlyLikedToggle'),
   hideDislikedToggle: $('hideDislikedToggle'),
 
+  suggestionForm: $('suggestionForm'),
   suggestionText: $('suggestionText'),
   suggestionBtn: $('suggestionBtn'),
   suggestionMessage: $('suggestionMessage'),
 
   favoritesList: $('favoritesList'),
   favoritesMessage: $('favoritesMessage'),
+  dislikedList: $('dislikedList'),
+  dislikedMessage: $('dislikedMessage'),
 };
 
 function withTimeout(promise, label = 'request', ms = REQUEST_TIMEOUT_MS) {
@@ -135,9 +141,18 @@ function updateAccountButton() {
 function updateAuthUI() {
   updateAccountButton();
   if (els.userEmail) els.userEmail.textContent = state.user?.email || '—';
+
   if (els.adminLink) {
-    els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
+    const isAdmin = state.profile?.role === 'admin';
+    els.adminLink.classList.toggle('hidden-link', !isAdmin);
+    els.adminLink.style.display = isAdmin ? 'inline-flex' : 'none';
   }
+
+  if (els.showOnlyLikedToggle) {
+    els.showOnlyLikedToggle.checked = !!state.profile?.show_only_liked;
+    els.showOnlyLikedToggle.disabled = !state.user;
+  }
+
   if (els.hideDislikedToggle) {
     els.hideDislikedToggle.checked = !!state.profile?.hide_disliked;
     els.hideDislikedToggle.disabled = !state.user;
@@ -146,13 +161,15 @@ function updateAuthUI() {
 
 function updateVoteButtons() {
   if (els.likeBtn) {
-    els.likeBtn.classList.toggle('active', state.currentVote === 'like');
-    els.likeBtn.classList.toggle('like', state.currentVote === 'like');
+    const active = state.currentVote === 'like';
+    els.likeBtn.classList.toggle('active', active);
+    els.likeBtn.classList.toggle('like', active);
     els.likeBtn.disabled = false;
   }
   if (els.dislikeBtn) {
-    els.dislikeBtn.classList.toggle('active', state.currentVote === 'dislike');
-    els.dislikeBtn.classList.toggle('dislike', state.currentVote === 'dislike');
+    const active = state.currentVote === 'dislike';
+    els.dislikeBtn.classList.toggle('active', active);
+    els.dislikeBtn.classList.toggle('dislike', active);
     els.dislikeBtn.disabled = false;
   }
 }
@@ -193,7 +210,7 @@ async function loadProfile() {
 
   try {
     const { data, error } = await withTimeout(
-      supabase.from('profiles').select('id,email,role,hide_disliked').eq('id', state.user.id).maybeSingle(),
+      supabase.from('profiles').select('id,email,role,hide_disliked,show_only_liked').eq('id', state.user.id).maybeSingle(),
       'load profile'
     );
 
@@ -238,18 +255,17 @@ async function loadUserVote(quoteId) {
   updateVoteButtons();
 }
 
-async function getDislikedQuoteIds() {
-  if (!state.user || !state.profile?.hide_disliked) return [];
-
+async function getVoteIds(voteType) {
+  if (!state.user) return [];
   try {
     const { data, error } = await withTimeout(
-      supabase.from('quote_votes').select('quote_id').eq('user_id', state.user.id).eq('vote', 'dislike'),
-      'load disliked ids'
+      supabase.from('quote_votes').select('quote_id').eq('user_id', state.user.id).eq('vote', voteType),
+      `load ${voteType} ids`
     );
     if (error) throw error;
-    return (data || []).map((item) => item.quote_id);
+    return (data || []).map((item) => item.quote_id).filter(Boolean);
   } catch (error) {
-    console.warn('getDislikedQuoteIds:', error);
+    console.warn(`getVoteIds ${voteType}:`, error);
     return [];
   }
 }
@@ -259,17 +275,24 @@ async function loadRandomQuote() {
   if (els.quoteText) els.quoteText.textContent = 'Загрузка цитаты...';
 
   try {
-    const [{ data, error }, dislikedIds] = await Promise.all([
+    const [quotesRes, likedIds, dislikedIds] = await Promise.all([
       withTimeout(
         supabase.from('quotes').select('id,text,status').eq('status', 'approved'),
         'load quotes'
       ),
-      getDislikedQuoteIds(),
+      state.user && state.profile?.show_only_liked ? getVoteIds('like') : Promise.resolve([]),
+      state.user && state.profile?.hide_disliked ? getVoteIds('dislike') : Promise.resolve([]),
     ]);
 
-    if (error) throw error;
+    if (quotesRes.error) throw quotesRes.error;
 
-    let quotes = data || [];
+    let quotes = quotesRes.data || [];
+
+    if (likedIds.length) {
+      const likedSet = new Set(likedIds);
+      quotes = quotes.filter((quote) => likedSet.has(quote.id));
+    }
+
     if (dislikedIds.length) {
       const dislikedSet = new Set(dislikedIds);
       quotes = quotes.filter((quote) => !dislikedSet.has(quote.id));
@@ -279,9 +302,13 @@ async function loadRandomQuote() {
       state.currentQuote = null;
       state.currentVote = null;
       if (els.quoteText) {
-        els.quoteText.textContent = state.profile?.hide_disliked
-          ? 'Под подходящий фильтр пока ничего не осталось.'
-          : 'Пока нет опубликованных цитат.';
+        if (state.profile?.show_only_liked) {
+          els.quoteText.textContent = 'В любимых пока пусто.';
+        } else if (state.profile?.hide_disliked) {
+          els.quoteText.textContent = 'Под подходящий фильтр пока ничего не осталось.';
+        } else {
+          els.quoteText.textContent = 'Пока нет опубликованных цитат.';
+        }
       }
       updateVoteButtons();
       return;
@@ -359,6 +386,7 @@ async function signIn() {
     setMessage(els.globalMessage, 'Вход выполнен.', 'success');
 
     await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
+    await loadRandomQuote();
   } catch (error) {
     console.warn('signIn:', error);
     setMessage(els.authMessage, normalizeError(error), 'error');
@@ -392,6 +420,7 @@ async function signUp() {
       setMessage(els.authMessage, '');
       setMessage(els.globalMessage, 'Аккаунт создан.', 'success');
       await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
+      await loadRandomQuote();
     } else {
       setMessage(els.authMessage, 'Аккаунт создан. Проверь настройки подтверждения почты.', 'info');
     }
@@ -405,7 +434,7 @@ async function signUp() {
 }
 
 async function signOutUser() {
-  els.signOutBtn.disabled = true;
+  if (els.signOutBtn) els.signOutBtn.disabled = true;
   try {
     await Promise.race([
       supabase.auth.signOut(),
@@ -425,6 +454,66 @@ async function signOutUser() {
   }
 }
 
+async function applyVoteToQuote(quoteId, voteType) {
+  if (!state.user || !quoteId) return false;
+
+  let currentVote = null;
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('quote_votes').select('vote').eq('quote_id', quoteId).eq('user_id', state.user.id).maybeSingle(),
+      'get current vote'
+    );
+    if (error) throw error;
+    currentVote = data?.vote || null;
+  } catch (error) {
+    console.warn('applyVoteToQuote precheck:', error);
+    setMessage(els.globalMessage, normalizeError(error), 'error');
+    return false;
+  }
+
+  try {
+    if (currentVote === voteType) {
+      const { error } = await withTimeout(
+        supabase.from('quote_votes').delete().eq('quote_id', quoteId).eq('user_id', state.user.id),
+        'delete vote'
+      );
+      if (error) throw error;
+      if (state.currentQuote?.id === quoteId) state.currentVote = null;
+    } else {
+      const { error } = await withTimeout(
+        supabase.from('quote_votes').upsert({
+          quote_id: quoteId,
+          user_id: state.user.id,
+          vote: voteType,
+        }, { onConflict: 'quote_id,user_id' }),
+        'save vote'
+      );
+      if (error) throw error;
+      if (state.currentQuote?.id === quoteId) state.currentVote = voteType;
+    }
+
+    if (state.currentQuote?.id === quoteId) updateVoteButtons();
+
+    await Promise.allSettled([
+      !els.favoritesModal.hidden ? openFavorites(true) : Promise.resolve(),
+      !els.dislikedModal.hidden ? openDisliked(true) : Promise.resolve(),
+    ]);
+
+    if ((voteType === 'dislike' && state.profile?.hide_disliked) ||
+        (voteType === 'like' && state.profile?.show_only_liked) ||
+        currentVote === 'dislike' ||
+        currentVote === 'like') {
+      await loadRandomQuote();
+    }
+
+    return true;
+  } catch (error) {
+    console.warn('applyVoteToQuote save:', error);
+    setMessage(els.globalMessage, normalizeError(error), 'error');
+    return false;
+  }
+}
+
 async function vote(voteType) {
   if (!state.user) {
     openModal(els.authModal);
@@ -436,101 +525,123 @@ async function vote(voteType) {
   els.dislikeBtn.disabled = true;
 
   try {
-    if (state.currentVote === voteType) {
-      const { error } = await withTimeout(
-        supabase.from('quote_votes').delete().eq('quote_id', state.currentQuote.id).eq('user_id', state.user.id),
-        'delete vote'
-      );
-      if (error) throw error;
-      state.currentVote = null;
-    } else {
-      const { error } = await withTimeout(
-        supabase.from('quote_votes').upsert({
-          quote_id: state.currentQuote.id,
-          user_id: state.user.id,
-          vote: voteType,
-        }, { onConflict: 'quote_id,user_id' }),
-        'save vote'
-      );
-      if (error) throw error;
-      state.currentVote = voteType;
-    }
-
-    updateVoteButtons();
-
-    if (voteType === 'dislike' && state.profile?.hide_disliked) {
-      await loadRandomQuote();
-    }
-  } catch (error) {
-    console.warn('vote:', error);
-    setMessage(els.globalMessage, normalizeError(error), 'error');
+    await applyVoteToQuote(state.currentQuote.id, voteType);
   } finally {
     els.likeBtn.disabled = false;
     els.dislikeBtn.disabled = false;
   }
 }
 
-async function saveHideDislikedSetting() {
-  if (!state.user) return;
-  const value = !!els.hideDislikedToggle?.checked;
-  if (state.profile) state.profile.hide_disliked = value;
+async function saveProfileSetting(field, value) {
+  if (!state.user) return false;
+  if (state.profile) state.profile[field] = value;
 
   try {
     const { error } = await withTimeout(
-      supabase.from('profiles').update({ hide_disliked: value }).eq('id', state.user.id),
-      'save setting'
+      supabase.from('profiles').update({ [field]: value }).eq('id', state.user.id),
+      `save ${field}`
     );
     if (error) throw error;
+    updateAuthUI();
     await loadRandomQuote();
+    return true;
   } catch (error) {
-    console.warn('saveHideDislikedSetting:', error);
+    console.warn(`saveProfileSetting ${field}:`, error);
     setMessage(els.globalMessage, normalizeError(error), 'error');
+    return false;
   }
 }
 
-async function openFavorites() {
+function renderVoteList(targetEl, quotes, kind) {
+  targetEl.innerHTML = quotes.map((quote) => {
+    const currentVote = kind === 'like' ? 'like' : 'dislike';
+    const likeActive = currentVote === 'like';
+    const dislikeActive = currentVote === 'dislike';
+    return `
+      <article class="favorite-item" data-quote-id="${quote.id}">
+        <p>${escapeHtml(quote.text)}</p>
+        <div class="favorite-item__actions">
+          <button class="icon-btn vote-btn ${likeActive ? 'active like' : ''}" type="button" data-vote-list="like" data-quote-id="${quote.id}" aria-label="Нравится" title="Нравится">
+            <span class="material-symbols-outlined">thumb_up</span>
+          </button>
+          <button class="icon-btn vote-btn ${dislikeActive ? 'active dislike' : ''}" type="button" data-vote-list="dislike" data-quote-id="${quote.id}" aria-label="Не нравится" title="Не нравится">
+            <span class="material-symbols-outlined">thumb_down</span>
+          </button>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function loadVoteList(kind) {
+  const messageEl = kind === 'like' ? els.favoritesMessage : els.dislikedMessage;
+  const listEl = kind === 'like' ? els.favoritesList : els.dislikedList;
+
+  const idsRes = await withTimeout(
+    supabase.from('quote_votes').select('quote_id').eq('user_id', state.user.id).eq('vote', kind),
+    `load ${kind} ids`
+  );
+  if (idsRes.error) throw idsRes.error;
+
+  const ids = (idsRes.data || []).map((item) => item.quote_id).filter(Boolean);
+  if (!ids.length) {
+    setMessage(messageEl, kind === 'like' ? 'Пока ничего не лайкала.' : 'Пока ничего не дизлайкала.');
+    listEl.innerHTML = '';
+    return;
+  }
+
+  const quotesRes = await withTimeout(
+    supabase.from('quotes').select('id,text,status').in('id', ids).eq('status', 'approved'),
+    `load ${kind} quotes`
+  );
+  if (quotesRes.error) throw quotesRes.error;
+
+  const quotes = quotesRes.data || [];
+  if (!quotes.length) {
+    setMessage(messageEl, kind === 'like' ? 'Пока ничего не лайкала.' : 'Пока ничего не дизлайкала.');
+    listEl.innerHTML = '';
+    return;
+  }
+
+  setMessage(messageEl, '');
+  renderVoteList(listEl, quotes, kind);
+}
+
+async function openFavorites(refreshOnly = false) {
   if (!state.user) {
     openModal(els.authModal);
     return;
   }
 
-  setMessage(els.favoritesMessage, 'Загружаем...');
-  els.favoritesList.innerHTML = '';
-  openModal(els.favoritesModal);
+  if (!refreshOnly) {
+    setMessage(els.favoritesMessage, 'Загружаем...');
+    openModal(els.favoritesModal);
+  }
 
   try {
-    const { data: likes, error: likesError } = await withTimeout(
-      supabase.from('quote_votes').select('quote_id').eq('user_id', state.user.id).eq('vote', 'like'),
-      'load favorites ids'
-    );
-    if (likesError) throw likesError;
-
-    const ids = (likes || []).map((item) => item.quote_id).filter(Boolean);
-    if (!ids.length) {
-      setMessage(els.favoritesMessage, 'Пока ничего не лайкала.');
-      return;
-    }
-
-    const { data: quotes, error: quotesError } = await withTimeout(
-      supabase.from('quotes').select('id,text,status').in('id', ids).eq('status', 'approved'),
-      'load favorites quotes'
-    );
-    if (quotesError) throw quotesError;
-
-    if (!quotes?.length) {
-      setMessage(els.favoritesMessage, 'Пока ничего не лайкала.');
-      return;
-    }
-
-    setMessage(els.favoritesMessage, '');
-    els.favoritesList.innerHTML = quotes.map((quote) => `
-      <article class="favorite-item">
-        <p>${escapeHtml(quote.text)}</p>
-      </article>
-    `).join('');
+    await loadVoteList('like');
   } catch (error) {
     console.warn('openFavorites:', error);
     setMessage(els.favoritesMessage, normalizeError(error), 'error');
+  }
+}
+
+async function openDisliked(refreshOnly = false) {
+  if (!state.user) {
+    openModal(els.authModal);
+    return;
+  }
+
+  if (!refreshOnly) {
+    setMessage(els.dislikedMessage, 'Загружаем...');
+    openModal(els.dislikedModal);
+  }
+
+  try {
+    await loadVoteList('dislike');
+  } catch (error) {
+    console.warn('openDisliked:', error);
+    setMessage(els.dislikedMessage, normalizeError(error), 'error');
   }
 }
 
@@ -584,6 +695,32 @@ async function restoreSession() {
   }
 }
 
+function bindVoteListHandlers(container, kind) {
+  container?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-vote-list]');
+    if (!button) return;
+    if (!state.user) return;
+
+    const voteType = button.dataset.voteList;
+    const quoteId = button.dataset.quoteId;
+    button.disabled = true;
+    try {
+      const ok = await applyVoteToQuote(quoteId, voteType);
+      if (ok) {
+        if (kind === 'like') {
+          await openFavorites(true);
+          await openDisliked(true);
+        } else {
+          await openDisliked(true);
+          await openFavorites(true);
+        }
+      }
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
 function bindEvents() {
   bindModalEvents();
 
@@ -610,9 +747,27 @@ function bindEvents() {
   els.signUpBtn?.addEventListener('click', signUp);
   els.signOutBtn?.addEventListener('click', signOutUser);
   els.openSuggestionBtn?.addEventListener('click', () => openModal(els.suggestionModal));
-  els.openFavoritesBtn?.addEventListener('click', openFavorites);
-  els.hideDislikedToggle?.addEventListener('change', saveHideDislikedSetting);
+  els.openFavoritesBtn?.addEventListener('click', () => openFavorites(false));
+  els.openDislikedBtn?.addEventListener('click', () => openDisliked(false));
+
+  els.showOnlyLikedToggle?.addEventListener('change', async () => {
+    const previous = !!state.profile?.show_only_liked;
+    const next = !!els.showOnlyLikedToggle.checked;
+    const ok = await saveProfileSetting('show_only_liked', next);
+    if (!ok && els.showOnlyLikedToggle) els.showOnlyLikedToggle.checked = previous;
+  });
+
+  els.hideDislikedToggle?.addEventListener('change', async () => {
+    const previous = !!state.profile?.hide_disliked;
+    const next = !!els.hideDislikedToggle.checked;
+    const ok = await saveProfileSetting('hide_disliked', next);
+    if (!ok && els.hideDislikedToggle) els.hideDislikedToggle.checked = previous;
+  });
+
   els.suggestionBtn?.addEventListener('click', sendSuggestion);
+
+  bindVoteListHandlers(els.favoritesList, 'like');
+  bindVoteListHandlers(els.dislikedList, 'dislike');
 
   els.authForm?.addEventListener('submit', (event) => {
     event.preventDefault();

@@ -462,6 +462,14 @@ async function init() {
   if (!ok) return;
 
   await refreshAll();
+  document.querySelectorAll('[data-panel-content]').forEach((content) => {
+    if (content.dataset.panelContent === 'stats') return;
+    content.hidden = true;
+    const panel = document.querySelector(`[data-panel="${content.dataset.panelContent}"]`);
+    const icon = document.querySelector(`[data-panel-toggle="${content.dataset.panelContent}"] .material-symbols-outlined`);
+    if (panel) panel.classList.add('collapsed');
+    if (icon) icon.textContent = 'expand_more';
+  });
   window.setInterval(refreshAll, 15000);
 }
 

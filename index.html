@@ -99,13 +99,9 @@
       <div class="modal-body account-body">
         <div class="account-email" id="userEmail">—</div>
 
-        <label class="setting-row">
-          <span>Не показывать дизлайкнутые</span>
-          <input id="hideDislikedToggle" type="checkbox" />
-        </label>
-
         <div class="stack-buttons">
           <button id="openFavoritesBtn" class="text-btn" type="button">Любимые цитаты</button>
+          <button id="openDislikedBtn" class="text-btn" type="button">Не любимые цитаты</button>
           <button id="openSuggestionBtn" class="text-btn primary" type="button">Предложить цитату</button>
           <a id="adminLink" class="text-btn ghost hidden-link" href="./admin.html">Админка</a>
           <button id="signOutBtn" class="text-btn danger" type="button">Выйти</button>
@@ -147,8 +143,32 @@
         </button>
       </div>
       <div class="modal-body">
+        <label class="setting-row">
+          <span>Показывать только любимые</span>
+          <input id="showOnlyLikedToggle" type="checkbox" />
+        </label>
         <div id="favoritesMessage" class="message" aria-live="polite"></div>
         <div id="favoritesList" class="favorites-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dislikedModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="dislikedModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Не любимые цитаты</h2>
+        <button class="icon-btn" type="button" data-close="dislikedModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <label class="setting-row">
+          <span>Не показывать дизлайкнутые</span>
+          <input id="hideDislikedToggle" type="checkbox" />
+        </label>
+        <div id="dislikedMessage" class="message" aria-live="polite"></div>
+        <div id="dislikedList" class="favorites-list"></div>
       </div>
     </div>
   </div>

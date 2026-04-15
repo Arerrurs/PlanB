@@ -5,7 +5,8 @@ create table if not exists public.profiles (
   email text,
   role text not null default 'user' check (role in ('user', 'admin')),
   created_at timestamptz not null default now(),
-  hide_disliked boolean not null default false
+  hide_disliked boolean not null default false,
+  show_only_liked boolean not null default false
 );
 
 create table if not exists public.quotes (
