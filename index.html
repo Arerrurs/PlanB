@@ -41,8 +41,11 @@
           <button id="copyBtn" class="icon-btn" type="button" aria-label="Скопировать цитату" title="Скопировать">
             <span class="material-symbols-outlined">content_copy</span>
           </button>
-          <button id="shareBtn" class="icon-btn" type="button" aria-label="Поделиться цитатой" title="Поделиться">
+          <button id="shareBtn" class="icon-btn" type="button" aria-label="Поделиться текстом и ссылкой" title="Текст и ссылка">
             <span class="material-symbols-outlined">ios_share</span>
+          </button>
+          <button id="shareCardBtn" class="icon-btn" type="button" aria-label="Поделиться карточкой" title="Карточка">
+            <span class="material-symbols-outlined">image</span>
           </button>
         </div>
         <div class="right-actions">
@@ -196,10 +199,14 @@
         </button>
       </div>
       <div class="modal-body">
-        <label class="setting-row">
-          <span>Не показывать любимые</span>
-          <input id="hideLikedToggle" type="checkbox" />
-        </label>
+        <div class="setting-row setting-row--stack">
+          <span>Фильтр для ленты</span>
+          <div id="likedFilterControl" class="segmented-control" role="group" aria-label="Фильтр лайкнутых цитат">
+            <button class="segment-btn" type="button" data-liked-mode="all">Все</button>
+            <button class="segment-btn" type="button" data-liked-mode="only">Только лайкнутые</button>
+            <button class="segment-btn" type="button" data-liked-mode="exclude">Скрыть лайкнутые</button>
+          </div>
+        </div>
         <div id="favoritesMessage" class="message" aria-live="polite"></div>
         <div id="favoritesList" class="favorites-list"></div>
       </div>
@@ -216,10 +223,14 @@
         </button>
       </div>
       <div class="modal-body">
-        <label class="setting-row">
-          <span>Не показывать дизлайкнутые</span>
-          <input id="hideDislikedToggle" type="checkbox" />
-        </label>
+        <div class="setting-row setting-row--stack">
+          <span>Фильтр для ленты</span>
+          <div id="dislikedFilterControl" class="segmented-control" role="group" aria-label="Фильтр дизлайкнутых цитат">
+            <button class="segment-btn" type="button" data-disliked-mode="all">Все</button>
+            <button class="segment-btn" type="button" data-disliked-mode="only">Только дизлайкнутые</button>
+            <button class="segment-btn" type="button" data-disliked-mode="exclude">Скрыть дизлайкнутые</button>
+          </div>
+        </div>
         <div id="dislikedMessage" class="message" aria-live="polite"></div>
         <div id="dislikedList" class="favorites-list"></div>
       </div>

@@ -16,6 +16,8 @@ const QUOTES_CACHE_TTL_MS = 2 * 60 * 1000;
 const THEME_KEY = 'mudrost-theme';
 const LIGHT_ACCENT_KEY = 'mudrost-light-accent';
 const DARK_ACCENT_KEY = 'mudrost-dark-accent';
+const LIKED_FILTER_MODE_KEY = 'mudrost-liked-filter-mode';
+const DISLIKED_FILTER_MODE_KEY = 'mudrost-disliked-filter-mode';
 const DEFAULT_LIGHT_ACCENT = '#a855f7';
 const DEFAULT_DARK_ACCENT = '#f472b6';
 
@@ -40,6 +42,7 @@ const els = {
   refreshBtn: $('refreshBtn'),
   copyBtn: $('copyBtn'),
   shareBtn: $('shareBtn'),
+  shareCardBtn: $('shareCardBtn'),
   likeBtn: $('likeBtn'),
   dislikeBtn: $('dislikeBtn'),
 
@@ -65,8 +68,8 @@ const els = {
   openSuggestionBtn: $('openSuggestionBtn'),
   openFavoritesBtn: $('openFavoritesBtn'),
   openDislikedBtn: $('openDislikedBtn'),
-  hideLikedToggle: $('hideLikedToggle'),
-  hideDislikedToggle: $('hideDislikedToggle'),
+  likedFilterControl: $('likedFilterControl'),
+  dislikedFilterControl: $('dislikedFilterControl'),
 
   settingsForm: $('settingsForm'),
   settingsEmail: $('settingsEmail'),
@@ -158,6 +161,8 @@ function setAccentCssVar(color) {
   const { r, g, b } = hexToRgb(safe);
   document.documentElement.style.setProperty('--primary', safe);
   document.documentElement.style.setProperty('--primary-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
+  document.body.style.setProperty('--primary', safe);
+  document.body.style.setProperty('--primary-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
 }
 
 function getStoredAccent(theme) {
@@ -182,6 +187,32 @@ function initTheme() {
 function syncThemeInputs() {
   if (els.lightAccentInput) els.lightAccentInput.value = getStoredAccent('light');
   if (els.darkAccentInput) els.darkAccentInput.value = getStoredAccent('dark');
+}
+
+function getFilterMode(kind) {
+  const key = kind === 'like' ? LIKED_FILTER_MODE_KEY : DISLIKED_FILTER_MODE_KEY;
+  const value = localStorage.getItem(key);
+  return ['all', 'only', 'exclude'].includes(value) ? value : 'all';
+}
+
+function setFilterMode(kind, mode) {
+  const key = kind === 'like' ? LIKED_FILTER_MODE_KEY : DISLIKED_FILTER_MODE_KEY;
+  localStorage.setItem(key, ['all', 'only', 'exclude'].includes(mode) ? mode : 'all');
+}
+
+function syncFilterControls() {
+  const likedMode = getFilterMode('like');
+  const dislikedMode = getFilterMode('dislike');
+
+  els.likedFilterControl?.querySelectorAll('[data-liked-mode]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.likedMode === likedMode);
+    btn.setAttribute('aria-pressed', btn.dataset.likedMode === likedMode ? 'true' : 'false');
+  });
+
+  els.dislikedFilterControl?.querySelectorAll('[data-disliked-mode]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.dislikedMode === dislikedMode);
+    btn.setAttribute('aria-pressed', btn.dataset.dislikedMode === dislikedMode ? 'true' : 'false');
+  });
 }
 
 function getQuoteUrl(quoteId = state.currentQuote?.id) {
@@ -287,10 +318,9 @@ function updateAuthUI() {
   setMessage(els.settingsMessage, '');
   if (els.userEmail) els.userEmail.textContent = state.user?.email || '—';
   if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
-  if (els.hideLikedToggle) els.hideLikedToggle.checked = !!state.profile?.hide_liked;
-  if (els.hideDislikedToggle) els.hideDislikedToggle.checked = !!state.profile?.hide_disliked;
   if (els.settingsEmail) els.settingsEmail.value = state.user?.email || '';
   syncThemeInputs();
+  syncFilterControls();
 }
 
 async function ensureProfileExists() {
@@ -384,16 +414,25 @@ async function getVoteIds(kind, force = false) {
 }
 
 async function filterQuotesForUser(quotes) {
-  if (!state.user || !state.profile) return quotes;
+  if (!state.user) return quotes;
   let result = [...quotes];
-  if (state.profile.hide_liked) {
+  const likedMode = getFilterMode('like');
+  const dislikedMode = getFilterMode('dislike');
+
+  if (likedMode !== 'all') {
     const likedIds = await getVoteIds('like');
-    result = result.filter((quote) => !likedIds.includes(quote.id));
+    result = likedMode === 'only'
+      ? result.filter((quote) => likedIds.includes(quote.id))
+      : result.filter((quote) => !likedIds.includes(quote.id));
   }
-  if (state.profile.hide_disliked) {
+
+  if (dislikedMode !== 'all') {
     const dislikedIds = await getVoteIds('dislike');
-    result = result.filter((quote) => !dislikedIds.includes(quote.id));
+    result = dislikedMode === 'only'
+      ? result.filter((quote) => dislikedIds.includes(quote.id))
+      : result.filter((quote) => !dislikedIds.includes(quote.id));
   }
+
   return result;
 }
 
@@ -557,25 +596,12 @@ async function generateShareImageBlob() {
   });
 }
 
-async function shareQuote() {
+async function shareQuoteText() {
   if (!state.currentQuote?.text) return;
   const quoteUrl = getQuoteUrl();
-  const textOnly = `${state.currentQuote.text}\n\n${quoteUrl}`;
+  const textOnly = `${state.currentQuote.text}
 
-  if (navigator.share && isMobileLikeDevice()) {
-    try {
-      const blob = await generateShareImageBlob();
-      const file = new File([blob], 'mudrost-day.png', { type: 'image/png' });
-      const payload = { text: textOnly, url: quoteUrl, title: 'Мудрость дня' };
-      if (navigator.canShare?.({ files: [file] })) {
-        payload.files = [file];
-      }
-      await navigator.share(payload);
-      return;
-    } catch (error) {
-      console.warn('shareQuote mobile:', error);
-    }
-  }
+${quoteUrl}`;
 
   if (navigator.share) {
     try {
@@ -589,6 +615,32 @@ async function shareQuote() {
     setMessage(els.globalMessage, 'Цитата и ссылка скопированы.', 'success');
   } catch {
     setMessage(els.globalMessage, 'Не удалось поделиться.', 'error');
+  }
+}
+
+async function shareQuoteCard() {
+  if (!state.currentQuote?.text) return;
+  try {
+    const blob = await generateShareImageBlob();
+    const file = new File([blob], 'mudrost-day-card.png', { type: 'image/png' });
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Мудрость дня' });
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = 'mudrost-day-card.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    setMessage(els.globalMessage, 'Карточка сохранена.', 'success');
+  } catch (error) {
+    console.warn('shareQuoteCard:', error);
+    setMessage(els.globalMessage, 'Не удалось подготовить карточку.', 'error');
   }
 }
 
@@ -712,7 +764,7 @@ async function applyVoteToQuote(quoteId, voteType) {
       !els.dislikedModal.hidden ? openDisliked(true) : Promise.resolve(),
     ]);
 
-    if ((currentVote === 'like' || currentVote === 'dislike') || state.profile?.hide_liked || state.profile?.hide_disliked) {
+    if (currentVote === 'like' || currentVote === 'dislike' || getFilterMode('like') !== 'all' || getFilterMode('dislike') !== 'all') {
       await loadRandomQuote();
     }
     return true;
@@ -949,20 +1001,21 @@ async function loadStatsModal() {
       if (!topLiked || stat.likes > topLiked.count) topLiked = { id, count: stat.likes };
       if (!topDisliked || stat.dislikes > topDisliked.count) topDisliked = { id, count: stat.dislikes };
     }
+    const littleDataText = 'Сейчас мало данных для статистики, зайдите позже';
 
-    if (topLiked && quotes.get(topLiked.id)) {
+    if (topLiked && quotes.get(topLiked.id) && topLiked.count > 0) {
       els.topLikedText.textContent = quotes.get(topLiked.id).text;
       els.topLikedMeta.textContent = `${topLiked.count} лайков`;
     } else {
-      els.topLikedText.textContent = 'Пока данных нет.';
+      els.topLikedText.textContent = littleDataText;
       els.topLikedMeta.textContent = '—';
     }
 
-    if (topDisliked && quotes.get(topDisliked.id)) {
+    if (topDisliked && quotes.get(topDisliked.id) && topDisliked.count > 0) {
       els.topDislikedText.textContent = quotes.get(topDisliked.id).text;
       els.topDislikedMeta.textContent = `${topDisliked.count} дизлайков`;
     } else {
-      els.topDislikedText.textContent = 'Пока данных нет.';
+      els.topDislikedText.textContent = littleDataText;
       els.topDislikedMeta.textContent = '—';
     }
 
@@ -1029,7 +1082,8 @@ function bindEvents() {
 
   els.refreshBtn?.addEventListener('click', loadRandomQuote);
   els.copyBtn?.addEventListener('click', copyQuote);
-  els.shareBtn?.addEventListener('click', shareQuote);
+  els.shareBtn?.addEventListener('click', shareQuoteText);
+  els.shareCardBtn?.addEventListener('click', shareQuoteCard);
   els.likeBtn?.addEventListener('click', () => vote('like'));
   els.dislikeBtn?.addEventListener('click', () => vote('dislike'));
 
@@ -1040,18 +1094,20 @@ function bindEvents() {
   els.openFavoritesBtn?.addEventListener('click', () => openFavorites(false));
   els.openDislikedBtn?.addEventListener('click', () => openDisliked(false));
 
-  els.hideLikedToggle?.addEventListener('change', async () => {
-    const previous = !!state.profile?.hide_liked;
-    const next = !!els.hideLikedToggle.checked;
-    const ok = await saveProfileSetting('hide_liked', next);
-    if (!ok) els.hideLikedToggle.checked = previous;
+  els.likedFilterControl?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-liked-mode]');
+    if (!button) return;
+    setFilterMode('like', button.dataset.likedMode);
+    syncFilterControls();
+    await Promise.allSettled([openFavorites(true), loadRandomQuote()]);
   });
 
-  els.hideDislikedToggle?.addEventListener('change', async () => {
-    const previous = !!state.profile?.hide_disliked;
-    const next = !!els.hideDislikedToggle.checked;
-    const ok = await saveProfileSetting('hide_disliked', next);
-    if (!ok) els.hideDislikedToggle.checked = previous;
+  els.dislikedFilterControl?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-disliked-mode]');
+    if (!button) return;
+    setFilterMode('dislike', button.dataset.dislikedMode);
+    syncFilterControls();
+    await Promise.allSettled([openDisliked(true), loadRandomQuote()]);
   });
 
   els.saveSettingsBtn?.addEventListener('click', saveSettings);
@@ -1086,6 +1142,7 @@ function bindEvents() {
 async function init() {
   initTheme();
   syncThemeInputs();
+  syncFilterControls();
   bindEvents();
   restoreCachedQuoteToUI();
   await restoreSession();
