@@ -150,6 +150,24 @@
     </div>
   </div>
 
+
+
+  <div id="voteDetailsModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="voteDetailsModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="voteDetailsTitle">Кто голосовал</h2>
+        <button class="icon-btn" type="button" data-close="voteDetailsModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="voteDetailsMessage" class="message"></div>
+        <div id="voteDetailsList" class="admin-list compact-list"></div>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="./js/admin.js"></script>
 </body>
 </html>

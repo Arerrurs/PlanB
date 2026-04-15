@@ -34,10 +34,15 @@ const els = {
   editQuoteText: $('editQuoteText'),
   saveQuoteBtn: $('saveQuoteBtn'),
   editQuoteMessage: $('editQuoteMessage'),
+  voteDetailsModal: $('voteDetailsModal'),
+  voteDetailsTitle: $('voteDetailsTitle'),
+  voteDetailsList: $('voteDetailsList'),
+  voteDetailsMessage: $('voteDetailsMessage'),
 };
 
 let adminUser = null;
 let quoteStatsMap = new Map();
+
 
 function setMessage(el, text = '', type = 'info') {
   if (!el) return;
@@ -179,6 +184,38 @@ async function loadQuoteVoteStats() {
   }
 }
 
+async function openVoteDetails(quoteId, voteType) {
+  if (!quoteId || !voteType) return;
+  const title = voteType === 'like' ? 'Кто лайкнул' : 'Кто дизлайкнул';
+  setMessage(els.voteDetailsMessage, 'Загружаем...');
+  els.voteDetailsTitle.textContent = title;
+  els.voteDetailsList.innerHTML = '';
+  openModal(els.voteDetailsModal);
+
+  const { data, error } = await supabase.rpc('admin_quote_vote_details', { p_quote_id: quoteId, p_vote: voteType });
+  if (error) {
+    console.error('openVoteDetails:', error);
+    setMessage(els.voteDetailsMessage, normalizeError(error), 'error');
+    return;
+  }
+
+  if (!data?.length) {
+    setMessage(els.voteDetailsMessage, 'Пока пусто.');
+    return;
+  }
+
+  setMessage(els.voteDetailsMessage, '');
+  els.voteDetailsList.innerHTML = data.map((row) => `
+    <article class="admin-item">
+      <div class="user-email">${escapeHtml(row.email || 'без почты')}</div>
+      <div class="admin-item__meta">
+        <span class="badge">${escapeHtml(row.role || 'user')}</span>
+        <span>${row.created_at ? new Date(row.created_at).toLocaleString('ru-RU') : ''}</span>
+      </div>
+    </article>
+  `).join('');
+}
+
 function badgeClass(status) {
   if (status === 'pending') return 'badge pending';
   if (status === 'rejected') return 'badge rejected';
@@ -246,8 +283,12 @@ async function loadQuotes() {
               ${editedLine}
             </div>
             <div class="admin-item__meta">
-              <span class="stat-inline like"><span class="material-symbols-outlined">thumb_up</span>${stats.likes}</span>
-              <span class="stat-inline dislike"><span class="material-symbols-outlined">thumb_down</span>${stats.dislikes}</span>
+              <button class="stat-inline like stat-button" type="button" data-action="show-likes" data-id="${item.id}" title="Посмотреть, кто лайкнул">
+                <span class="material-symbols-outlined">thumb_up</span>${stats.likes}
+              </button>
+              <button class="stat-inline dislike stat-button" type="button" data-action="show-dislikes" data-id="${item.id}" title="Посмотреть, кто дизлайкнул">
+                <span class="material-symbols-outlined">thumb_down</span>${stats.dislikes}
+              </button>
             </div>
           </div>
           <div class="admin-item__actions">
@@ -367,6 +408,16 @@ async function handleAdminAction(event) {
   try {
     if (action === 'edit-quote') {
       startEditQuote(id, button.dataset.text || '');
+      return;
+    }
+
+    if (action === 'show-likes') {
+      await openVoteDetails(id, 'like');
+      return;
+    }
+
+    if (action === 'show-dislikes') {
+      await openVoteDetails(id, 'dislike');
       return;
     }
 

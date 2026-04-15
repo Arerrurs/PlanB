@@ -318,6 +318,7 @@ async function loadRandomQuote() {
     state.currentQuote = random;
     if (els.quoteId) els.quoteId.value = random.id;
     if (els.quoteText) els.quoteText.textContent = random.text;
+    updateQuoteUrl(random.id, true);
     await loadUserVote(random.id);
   } catch (error) {
     console.warn('loadRandomQuote:', error);
@@ -422,7 +423,7 @@ async function signUp() {
       await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
       await loadRandomQuote();
     } else {
-      setMessage(els.authMessage, 'Аккаунт создан. Проверь настройки подтверждения почты.', 'info');
+      setMessage(els.authMessage, 'Аккаунт создан, но в Supabase всё ещё включено подтверждение почты. Выключи Confirm email в настройках Auth.', 'info');
     }
   } catch (error) {
     console.warn('signUp:', error);
@@ -516,6 +517,7 @@ async function applyVoteToQuote(quoteId, voteType) {
 
 async function vote(voteType) {
   if (!state.user) {
+    setMessage(els.globalMessage, 'Сначала зарегистрируйтесь или войдите.', 'info');
     openModal(els.authModal);
     return;
   }
@@ -609,6 +611,7 @@ async function loadVoteList(kind) {
 
 async function openFavorites(refreshOnly = false) {
   if (!state.user) {
+    setMessage(els.globalMessage, 'Сначала зарегистрируйтесь или войдите.', 'info');
     openModal(els.authModal);
     return;
   }
@@ -628,6 +631,7 @@ async function openFavorites(refreshOnly = false) {
 
 async function openDisliked(refreshOnly = false) {
   if (!state.user) {
+    setMessage(els.globalMessage, 'Сначала зарегистрируйтесь или войдите.', 'info');
     openModal(els.authModal);
     return;
   }
@@ -668,6 +672,38 @@ async function sendSuggestion() {
     setMessage(els.suggestionMessage, normalizeError(error), 'error');
   } finally {
     els.suggestionBtn.disabled = false;
+  }
+}
+
+
+async function loadQuoteById(quoteId) {
+  if (!quoteId) return false;
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('quotes').select('id,text,status').eq('id', quoteId).maybeSingle(),
+      'load quote by id'
+    );
+    if (error) throw error;
+    if (!data || data.status !== 'approved') return false;
+
+    if (state.user && state.profile?.show_only_liked) {
+      const likedIds = await getVoteIds('like');
+      if (!likedIds.includes(data.id)) return false;
+    }
+    if (state.user && state.profile?.hide_disliked) {
+      const dislikedIds = await getVoteIds('dislike');
+      if (dislikedIds.includes(data.id)) return false;
+    }
+
+    state.currentQuote = data;
+    if (els.quoteId) els.quoteId.value = data.id;
+    if (els.quoteText) els.quoteText.textContent = data.text;
+    updateQuoteUrl(data.id, true);
+    await loadUserVote(data.id);
+    return true;
+  } catch (error) {
+    console.warn('loadQuoteById:', error);
+    return false;
   }
 }
 
@@ -798,8 +834,11 @@ async function init() {
   } else {
     updateAuthUI();
   }
-  await loadRandomQuote();
+  const quoteFromUrl = new URL(window.location.href).searchParams.get('quote');
+  const loadedById = quoteFromUrl ? await loadQuoteById(quoteFromUrl) : false;
+  if (!loadedById) await loadRandomQuote();
 }
+
 
 window.addEventListener('unhandledrejection', (event) => {
   console.warn('Unhandled rejection:', event.reason);

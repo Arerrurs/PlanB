@@ -53,3 +53,18 @@ where email = 'твоя_почта';
 
 Обновление v5:
 - для уже существующего проекта выполни `fix_existing_project.sql`, чтобы добавить настройку `show_only_liked` в `profiles`.
+
+
+## Что обязательно сделать в Supabase для регистрации без подтверждения почты
+
+1. Открой **Authentication → Providers → Email**.
+2. Выключи **Confirm email**.
+3. В **Authentication → URL Configuration** поставь:
+   - **Site URL**: `https://arerrurs.github.io/PlanB/`
+   - **Redirect URLs**: `https://arerrurs.github.io/PlanB/*`
+
+Пока Confirm email включён, пользователь не сможет зарегистрироваться и сразу войти без письма.
+
+## После обновления существующего проекта
+
+Если проект уже создан, выполни `fix_existing_project.sql` в SQL Editor.

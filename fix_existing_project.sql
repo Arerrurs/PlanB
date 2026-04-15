@@ -129,3 +129,27 @@ with check (public.is_admin(auth.uid()));
 create policy "suggestions admin delete"
 on public.quote_suggestions for delete
 using (public.is_admin(auth.uid()));
+
+
+create or replace function public.admin_quote_vote_details(p_quote_id uuid, p_vote text)
+returns table(user_id uuid, email text, role text, created_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin(auth.uid()) then
+    raise exception 'not allowed';
+  end if;
+
+  return query
+  select p.id, p.email, p.role, qv.created_at
+  from public.quote_votes qv
+  left join public.profiles p on p.id = qv.user_id
+  where qv.quote_id = p_quote_id
+    and qv.vote = p_vote
+  order by qv.created_at desc;
+end;
+$$;
+
+grant execute on function public.admin_quote_vote_details(uuid, text) to authenticated;
