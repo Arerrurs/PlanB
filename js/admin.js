@@ -58,7 +58,15 @@ function escapeHtml(str) {
 }
 
 async function checkAccess() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    console.error('Ошибка session:', sessionError);
+    els.adminStatus.textContent = 'Ошибка чтения сессии.';
+    els.accessDenied.classList.remove('hidden');
+    return false;
+  }
+
   const user = session?.user;
   if (!user) {
     els.adminStatus.textContent = 'Сначала войди на главной странице.';
@@ -72,14 +80,31 @@ async function checkAccess() {
     .eq('id', user.id)
     .maybeSingle();
 
-  if (error || data?.role !== 'admin') {
-    els.adminStatus.textContent = 'Доступ только для администратора.';
+  console.log('SESSION USER ID:', user.id);
+  console.log('PROFILE:', data);
+  console.log('PROFILE ERROR:', error);
+
+  if (error) {
+    els.adminStatus.textContent = `Ошибка доступа к profiles: ${error.message}`;
+    els.accessDenied.classList.remove('hidden');
+    return false;
+  }
+
+  if (!data) {
+    els.adminStatus.textContent = 'Профиль не найден.';
+    els.accessDenied.classList.remove('hidden');
+    return false;
+  }
+
+  if (data.role !== 'admin') {
+    els.adminStatus.textContent = `Роль пользователя: ${data.role}`;
     els.accessDenied.classList.remove('hidden');
     return false;
   }
 
   adminUser = data;
   els.adminStatus.textContent = `Администратор: ${data.email}`;
+  els.accessDenied.classList.add('hidden');
   els.adminContent.classList.remove('hidden');
   return true;
 }
