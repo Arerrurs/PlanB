@@ -10,6 +10,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 const REQUEST_TIMEOUT_MS = 9000;
+const QUOTES_CACHE_KEY = 'mudrost-quotes-cache-v2';
+const CURRENT_QUOTE_KEY = 'mudrost-current-quote-v2';
+const QUOTES_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const state = {
   user: null,
@@ -72,16 +75,6 @@ function withTimeout(promise, label = 'request', ms = REQUEST_TIMEOUT_MS) {
   ]);
 }
 
-function updateQuoteUrl(quoteId) {
-  try {
-    const url = new URL(window.location.href);
-    url.searchParams.set('quote', quoteId);
-    window.history.replaceState({}, '', url);
-  } catch (e) {
-    console.warn('Не удалось обновить URL:', e);
-  }
-}
-
 function setMessage(el, text = '', type = 'info') {
   if (!el) return;
   el.textContent = text;
@@ -139,6 +132,220 @@ function escapeHtml(str) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
+}
+
+
+function getQuoteUrl(quoteId = state.currentQuote?.id) {
+  const url = new URL(window.location.href);
+  if (quoteId) {
+    url.searchParams.set('quote', quoteId);
+  } else {
+    url.searchParams.delete('quote');
+  }
+  return url.toString();
+}
+
+function updateQuoteUrl(quoteId, replace = true) {
+  const nextUrl = getQuoteUrl(quoteId);
+  try {
+    if (replace) window.history.replaceState({}, '', nextUrl);
+    else window.history.pushState({}, '', nextUrl);
+  } catch (error) {
+    console.warn('updateQuoteUrl:', error);
+  }
+}
+
+function saveQuotesCache(quotes) {
+  try {
+    sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), quotes }));
+  } catch (error) {
+    console.warn('saveQuotesCache:', error);
+  }
+}
+
+function readQuotesCache() {
+  try {
+    const raw = sessionStorage.getItem(QUOTES_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || !Array.isArray(parsed?.quotes)) return null;
+    if (Date.now() - parsed.savedAt > QUOTES_CACHE_TTL_MS) return null;
+    return parsed.quotes;
+  } catch (error) {
+    console.warn('readQuotesCache:', error);
+    return null;
+  }
+}
+
+function saveCurrentQuote(quote) {
+  if (!quote?.id || !quote?.text) return;
+  try {
+    localStorage.setItem(CURRENT_QUOTE_KEY, JSON.stringify(quote));
+  } catch (error) {
+    console.warn('saveCurrentQuote:', error);
+  }
+}
+
+function readCurrentQuote() {
+  try {
+    const raw = localStorage.getItem(CURRENT_QUOTE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.id || !parsed?.text) return null;
+    return parsed;
+  } catch (error) {
+    console.warn('readCurrentQuote:', error);
+    return null;
+  }
+}
+
+function showQuote(quote, syncUrl = true) {
+  if (!quote) return;
+  state.currentQuote = quote;
+  if (els.quoteId) els.quoteId.value = quote.id;
+  if (els.quoteText) els.quoteText.textContent = quote.text;
+  saveCurrentQuote(quote);
+  if (syncUrl) updateQuoteUrl(quote.id, true);
+}
+
+function restoreCachedQuoteToUI() {
+  const quote = readCurrentQuote();
+  if (!quote) return false;
+  showQuote(quote, false);
+  return true;
+}
+
+async function fetchApprovedQuotes() {
+  const cached = readQuotesCache();
+  if (cached?.length) return cached;
+  const quotesRes = await withTimeout(
+    supabase.from('quotes').select('id,text,status').eq('status', 'approved'),
+    'load quotes'
+  );
+  if (quotesRes.error) throw quotesRes.error;
+  const quotes = quotesRes.data || [];
+  saveQuotesCache(quotes);
+  return quotes;
+}
+
+function isMobileLikeDevice() {
+  return window.matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function wrapLines(ctx, text, maxWidth) {
+  const paragraphs = String(text || '').split(/
++/);
+  const lines = [];
+  paragraphs.forEach((paragraph, idx) => {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    let line = '';
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width <= maxWidth) {
+        line = test;
+      } else {
+        if (line) lines.push(line);
+        line = word;
+      }
+    }
+    if (line) lines.push(line);
+    if (idx < paragraphs.length - 1) lines.push('');
+  });
+  return lines;
+}
+
+async function generateShareImageBlob() {
+  const quoteText = state.currentQuote?.text || '';
+  const quoteUrl = getQuoteUrl();
+  const styles = getComputedStyle(document.body);
+  const bg = styles.getPropertyValue('--bg').trim() || '#120f1a';
+  const surface = styles.getPropertyValue('--surface').trim() || '#191420';
+  const border = styles.getPropertyValue('--border').trim() || '#3e314c';
+  const text = styles.getPropertyValue('--text').trim() || '#f5f0f7';
+  const muted = styles.getPropertyValue('--muted').trim() || '#bbaec3';
+  const primary = styles.getPropertyValue('--primary').trim() || '#f472b6';
+  const primarySoft = styles.getPropertyValue('--primary-soft').trim() || 'rgba(244,114,182,0.14)';
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1350;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = primarySoft;
+  ctx.beginPath();
+  ctx.arc(180, 120, 200, 0, Math.PI * 2);
+  ctx.fill();
+
+  const cardX = 72;
+  const cardY = 96;
+  const cardW = 936;
+  const cardH = 1158;
+  ctx.save();
+  roundedRect(ctx, cardX, cardY, cardW, cardH, 42);
+  ctx.fillStyle = surface;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = border;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  roundedRect(ctx, cardX + 56, cardY + 52, 78, 78, 24);
+  ctx.fillStyle = primarySoft;
+  ctx.fill();
+  ctx.font = '48px Spectral';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = primary;
+  ctx.fillText('✦', cardX + 95, cardY + 92);
+  ctx.restore();
+
+  ctx.fillStyle = muted;
+  ctx.font = '600 36px Spectral';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Мудрость дня', cardX + 160, cardY + 103);
+
+  ctx.fillStyle = text;
+  ctx.font = '500 62px Spectral';
+  const lines = wrapLines(ctx, `«${quoteText}»`, cardW - 140);
+  const lineHeight = 84;
+  const blockHeight = lines.length * lineHeight;
+  let y = cardY + Math.max(280, (cardH - blockHeight) / 2 - 40);
+  for (const line of lines) {
+    ctx.fillText(line, cardX + 70, y);
+    y += lineHeight;
+  }
+
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cardX + 70, cardY + cardH - 180);
+  ctx.lineTo(cardX + cardW - 70, cardY + cardH - 180);
+  ctx.stroke();
+
+  ctx.fillStyle = muted;
+  ctx.font = '400 28px Spectral';
+  ctx.fillText(quoteUrl.replace(/^https?:\/\//, ''), cardX + 70, cardY + cardH - 115);
+  ctx.fillStyle = primary;
+  ctx.font = '600 30px Spectral';
+  ctx.fillText('Мудрость дня', cardX + 70, cardY + cardH - 70);
+
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  return blob;
 }
 
 function updateAccountButton() {
@@ -282,33 +489,26 @@ async function getVoteIds(voteType) {
 
 async function loadRandomQuote() {
   setMessage(els.globalMessage, '');
-  if (els.quoteText) els.quoteText.textContent = 'Загрузка цитаты...';
+  if (els.quoteText && !state.currentQuote?.text) els.quoteText.textContent = 'Загрузка цитаты...';
 
   try {
-    const [quotesRes, likedIds, dislikedIds] = await Promise.all([
-      withTimeout(
-        supabase.from('quotes').select('id,text,status').eq('status', 'approved'),
-        'load quotes'
-      ),
+    const [quotes, likedIds, dislikedIds] = await Promise.all([
+      fetchApprovedQuotes(),
       state.user && state.profile?.show_only_liked ? getVoteIds('like') : Promise.resolve([]),
       state.user && state.profile?.hide_disliked ? getVoteIds('dislike') : Promise.resolve([]),
     ]);
 
-    if (quotesRes.error) throw quotesRes.error;
-
-    let quotes = quotesRes.data || [];
-
+    let filteredQuotes = quotes || [];
     if (likedIds.length) {
       const likedSet = new Set(likedIds);
-      quotes = quotes.filter((quote) => likedSet.has(quote.id));
+      filteredQuotes = filteredQuotes.filter((quote) => likedSet.has(quote.id));
     }
-
     if (dislikedIds.length) {
       const dislikedSet = new Set(dislikedIds);
-      quotes = quotes.filter((quote) => !dislikedSet.has(quote.id));
+      filteredQuotes = filteredQuotes.filter((quote) => !dislikedSet.has(quote.id));
     }
 
-    if (!quotes.length) {
+    if (!filteredQuotes.length) {
       state.currentQuote = null;
       state.currentVote = null;
       if (els.quoteText) {
@@ -324,11 +524,8 @@ async function loadRandomQuote() {
       return;
     }
 
-    const random = quotes[Math.floor(Math.random() * quotes.length)];
-    state.currentQuote = random;
-    if (els.quoteId) els.quoteId.value = random.id;
-    if (els.quoteText) els.quoteText.textContent = random.text;
-    updateQuoteUrl(random.id, true);
+    const random = filteredQuotes[Math.floor(Math.random() * filteredQuotes.length)];
+    showQuote(random, true);
     await loadUserVote(random.id);
   } catch (error) {
     console.warn('loadRandomQuote:', error);
@@ -352,9 +549,31 @@ async function copyQuote() {
 
 async function shareQuote() {
   if (!state.currentQuote?.text) return;
-  const shareText = `«${state.currentQuote.text}»\n\n${window.location.href}`;
+  const quoteUrl = getQuoteUrl();
+  const shareText = `«${state.currentQuote.text}»
+
+${quoteUrl}`;
 
   if (navigator.share) {
+    if (isMobileLikeDevice()) {
+      try {
+        const blob = await generateShareImageBlob();
+        if (blob) {
+          const file = new File([blob], `mudrost-${state.currentQuote.id}.png`, { type: 'image/png' });
+          if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: 'Мудрость дня',
+              text: shareText,
+              files: [file],
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('mobile share image fallback:', error);
+      }
+    }
+
     try {
       await navigator.share({
         title: 'Мудрость дня',
@@ -705,10 +924,7 @@ async function loadQuoteById(quoteId) {
       if (dislikedIds.includes(data.id)) return false;
     }
 
-    state.currentQuote = data;
-    if (els.quoteId) els.quoteId.value = data.id;
-    if (els.quoteText) els.quoteText.textContent = data.text;
-    updateQuoteUrl(data.id, true);
+    showQuote(data, true);
     await loadUserVote(data.id);
     return true;
   } catch (error) {

@@ -106,6 +106,16 @@
             </button>
           </div>
           <div class="panel-content" data-panel-content="quotes">
+            <div class="toolbar-row">
+              <label class="select-wrap">
+                <span>Сортировка</span>
+                <select id="quoteSortSelect" class="select-control">
+                  <option value="newest">Сначала новые</option>
+                  <option value="likes_desc">Самые лайкнутые</option>
+                  <option value="dislikes_desc">Самые дизлайкнутые</option>
+                </select>
+              </label>
+            </div>
             <div id="quotesList" class="admin-list"></div>
           </div>
         </section>

@@ -27,6 +27,7 @@ const els = {
   usersSummary: $('usersSummary'),
   usersList: $('usersList'),
   quotesList: $('quotesList'),
+  quoteSortSelect: $('quoteSortSelect'),
   suggestionsList: $('suggestionsList'),
   editQuoteModal: $('editQuoteModal'),
   editQuoteForm: $('editQuoteForm'),
@@ -222,6 +223,29 @@ function badgeClass(status) {
   return 'badge';
 }
 
+function sortQuotes(items) {
+  const mode = els.quoteSortSelect?.value || 'newest';
+  const copy = [...items];
+  if (mode === 'likes_desc') {
+    copy.sort((a, b) => {
+      const sa = quoteStatsMap.get(a.id) || { likes: 0, dislikes: 0 };
+      const sb = quoteStatsMap.get(b.id) || { likes: 0, dislikes: 0 };
+      return (sb.likes - sa.likes) || (new Date(b.created_at) - new Date(a.created_at));
+    });
+    return copy;
+  }
+  if (mode === 'dislikes_desc') {
+    copy.sort((a, b) => {
+      const sa = quoteStatsMap.get(a.id) || { likes: 0, dislikes: 0 };
+      const sb = quoteStatsMap.get(b.id) || { likes: 0, dislikes: 0 };
+      return (sb.dislikes - sa.dislikes) || (new Date(b.created_at) - new Date(a.created_at));
+    });
+    return copy;
+  }
+  copy.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return copy;
+}
+
 async function loadUsers() {
   const { data, error } = await supabase.rpc('admin_list_profiles');
 
@@ -266,7 +290,9 @@ async function loadQuotes() {
     return;
   }
 
-  els.quotesList.innerHTML = data.map((item) => {
+  const sortedQuotes = sortQuotes(data);
+
+  els.quotesList.innerHTML = sortedQuotes.map((item) => {
     const stats = quoteStatsMap.get(item.id) || { likes: 0, dislikes: 0 };
     const editedLine = item.updated_at && item.updated_at !== item.created_at
       ? `<span>обновлено: ${new Date(item.updated_at).toLocaleString('ru-RU')}</span>`
@@ -507,6 +533,7 @@ async function init() {
   els.quotesList.addEventListener('click', handleAdminAction);
   els.suggestionsList.addEventListener('click', handleAdminAction);
   els.saveQuoteBtn.addEventListener('click', saveEditedQuote);
+  els.quoteSortSelect?.addEventListener('change', loadQuotes);
   els.editQuoteForm.addEventListener('submit', (e) => e.preventDefault());
 
   const ok = await checkAccess();
