@@ -6,7 +6,10 @@ create table if not exists public.profiles (
   role text not null default 'user' check (role in ('user', 'admin')),
   created_at timestamptz not null default now(),
   hide_disliked boolean not null default false,
-  show_only_liked boolean not null default false
+  hide_liked boolean not null default false,
+  show_only_liked boolean not null default false,
+  light_accent text not null default '#a855f7',
+  dark_accent text not null default '#f472b6'
 );
 
 create table if not exists public.quotes (

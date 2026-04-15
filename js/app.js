@@ -10,15 +10,22 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 const REQUEST_TIMEOUT_MS = 9000;
-const QUOTES_CACHE_KEY = 'mudrost-quotes-cache-v2';
-const CURRENT_QUOTE_KEY = 'mudrost-current-quote-v2';
+const QUOTES_CACHE_KEY = 'mudrost-quotes-cache-v3';
+const CURRENT_QUOTE_KEY = 'mudrost-current-quote-v3';
 const QUOTES_CACHE_TTL_MS = 2 * 60 * 1000;
+const THEME_KEY = 'mudrost-theme';
+const LIGHT_ACCENT_KEY = 'mudrost-light-accent';
+const DARK_ACCENT_KEY = 'mudrost-dark-accent';
+const DEFAULT_LIGHT_ACCENT = '#a855f7';
+const DEFAULT_DARK_ACCENT = '#f472b6';
 
 const state = {
   user: null,
   profile: null,
   currentQuote: null,
   currentVote: null,
+  likedIds: null,
+  dislikedIds: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -27,6 +34,7 @@ const els = {
   quoteText: $('quoteText'),
   quoteId: $('quoteId'),
   globalMessage: $('globalMessage'),
+  statsBtn: $('statsBtn'),
   themeBtn: $('themeBtn'),
   accountBtn: $('accountBtn'),
   refreshBtn: $('refreshBtn'),
@@ -37,9 +45,11 @@ const els = {
 
   authModal: $('authModal'),
   accountModal: $('accountModal'),
+  settingsModal: $('settingsModal'),
   suggestionModal: $('suggestionModal'),
   favoritesModal: $('favoritesModal'),
   dislikedModal: $('dislikedModal'),
+  statsModal: $('statsModal'),
 
   authForm: $('authForm'),
   email: $('email'),
@@ -50,12 +60,22 @@ const els = {
   authMessage: $('authMessage'),
 
   userEmail: $('userEmail'),
+  settingsBtn: $('settingsBtn'),
   adminLink: $('adminLink'),
   openSuggestionBtn: $('openSuggestionBtn'),
   openFavoritesBtn: $('openFavoritesBtn'),
   openDislikedBtn: $('openDislikedBtn'),
-  showOnlyLikedToggle: $('showOnlyLikedToggle'),
+  hideLikedToggle: $('hideLikedToggle'),
   hideDislikedToggle: $('hideDislikedToggle'),
+
+  settingsForm: $('settingsForm'),
+  settingsEmail: $('settingsEmail'),
+  settingsPassword: $('settingsPassword'),
+  lightAccentInput: $('lightAccentInput'),
+  darkAccentInput: $('darkAccentInput'),
+  saveSettingsBtn: $('saveSettingsBtn'),
+  resetAccentBtn: $('resetAccentBtn'),
+  settingsMessage: $('settingsMessage'),
 
   suggestionForm: $('suggestionForm'),
   suggestionText: $('suggestionText'),
@@ -66,6 +86,12 @@ const els = {
   favoritesMessage: $('favoritesMessage'),
   dislikedList: $('dislikedList'),
   dislikedMessage: $('dislikedMessage'),
+
+  statsMessage: $('statsMessage'),
+  topLikedText: $('topLikedText'),
+  topLikedMeta: $('topLikedMeta'),
+  topDislikedText: $('topDislikedText'),
+  topDislikedMeta: $('topDislikedMeta'),
 };
 
 function withTimeout(promise, label = 'request', ms = REQUEST_TIMEOUT_MS) {
@@ -78,11 +104,7 @@ function withTimeout(promise, label = 'request', ms = REQUEST_TIMEOUT_MS) {
 function setMessage(el, text = '', type = 'info') {
   if (!el) return;
   el.textContent = text;
-  const colors = {
-    info: 'var(--muted)',
-    success: 'var(--success)',
-    error: 'var(--danger)',
-  };
+  const colors = { info: 'var(--muted)', success: 'var(--success)', error: 'var(--danger)' };
   el.style.color = colors[type] || colors.info;
 }
 
@@ -97,18 +119,13 @@ function normalizeError(error) {
   return error?.message || 'Что-то пошло не так.';
 }
 
-function applyTheme(theme) {
-  document.body.classList.toggle('dark', theme === 'dark');
-  localStorage.setItem('mudrost-theme', theme);
-}
-
-function initTheme() {
-  const saved = localStorage.getItem('mudrost-theme');
-  if (saved === 'dark' || saved === 'light') {
-    applyTheme(saved);
-    return;
-  }
-  applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 function openModal(el) {
@@ -125,23 +142,52 @@ function closeModal(el) {
   }
 }
 
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+function hexToRgb(hex) {
+  const value = hex.replace('#', '').trim();
+  const normalized = value.length === 3 ? value.split('').map((x) => x + x).join('') : value;
+  const int = Number.parseInt(normalized, 16);
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
 }
 
+function setAccentCssVar(color) {
+  const safe = color || DEFAULT_LIGHT_ACCENT;
+  const { r, g, b } = hexToRgb(safe);
+  document.documentElement.style.setProperty('--primary', safe);
+  document.documentElement.style.setProperty('--primary-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
+}
+
+function getStoredAccent(theme) {
+  return localStorage.getItem(theme === 'dark' ? DARK_ACCENT_KEY : LIGHT_ACCENT_KEY)
+    || (theme === 'dark' ? DEFAULT_DARK_ACCENT : DEFAULT_LIGHT_ACCENT);
+}
+
+function applyTheme(theme) {
+  document.body.classList.toggle('dark', theme === 'dark');
+  localStorage.setItem(THEME_KEY, theme);
+  setAccentCssVar(getStoredAccent(theme));
+}
+
+function initTheme() {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  const theme = savedTheme === 'dark' || savedTheme === 'light'
+    ? savedTheme
+    : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(theme);
+}
+
+function syncThemeInputs() {
+  if (els.lightAccentInput) els.lightAccentInput.value = getStoredAccent('light');
+  if (els.darkAccentInput) els.darkAccentInput.value = getStoredAccent('dark');
+}
 
 function getQuoteUrl(quoteId = state.currentQuote?.id) {
   const url = new URL(window.location.href);
-  if (quoteId) {
-    url.searchParams.set('quote', quoteId);
-  } else {
-    url.searchParams.delete('quote');
-  }
+  if (quoteId) url.searchParams.set('quote', quoteId);
+  else url.searchParams.delete('quote');
   return url.toString();
 }
 
@@ -158,9 +204,7 @@ function updateQuoteUrl(quoteId, replace = true) {
 function saveQuotesCache(quotes) {
   try {
     sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), quotes }));
-  } catch (error) {
-    console.warn('saveQuotesCache:', error);
-  }
+  } catch {}
 }
 
 function readQuotesCache() {
@@ -171,8 +215,7 @@ function readQuotesCache() {
     if (!parsed?.savedAt || !Array.isArray(parsed?.quotes)) return null;
     if (Date.now() - parsed.savedAt > QUOTES_CACHE_TTL_MS) return null;
     return parsed.quotes;
-  } catch (error) {
-    console.warn('readQuotesCache:', error);
+  } catch {
     return null;
   }
 }
@@ -181,9 +224,7 @@ function saveCurrentQuote(quote) {
   if (!quote?.id || !quote?.text) return;
   try {
     localStorage.setItem(CURRENT_QUOTE_KEY, JSON.stringify(quote));
-  } catch (error) {
-    console.warn('saveCurrentQuote:', error);
-  }
+  } catch {}
 }
 
 function readCurrentQuote() {
@@ -193,8 +234,7 @@ function readCurrentQuote() {
     const parsed = JSON.parse(raw);
     if (!parsed?.id || !parsed?.text) return null;
     return parsed;
-  } catch (error) {
-    console.warn('readCurrentQuote:', error);
+  } catch {
     return null;
   }
 }
@@ -202,10 +242,10 @@ function readCurrentQuote() {
 function showQuote(quote, syncUrl = true) {
   if (!quote) return;
   state.currentQuote = quote;
-  if (els.quoteId) els.quoteId.value = quote.id;
   if (els.quoteText) els.quoteText.textContent = quote.text;
+  if (els.quoteId) els.quoteId.value = quote.id;
   saveCurrentQuote(quote);
-  if (syncUrl) updateQuoteUrl(quote.id, true);
+  if (syncUrl) updateQuoteUrl(quote.id);
 }
 
 function restoreCachedQuoteToUI() {
@@ -215,17 +255,203 @@ function restoreCachedQuoteToUI() {
   return true;
 }
 
+function clearStoredSession() {
+  try {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.includes('supabase') || key === CURRENT_QUOTE_KEY) localStorage.removeItem(key);
+    });
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.includes('supabase') || key === QUOTES_CACHE_KEY) sessionStorage.removeItem(key);
+    });
+  } catch {}
+}
+
+function updateAccountButton() {
+  const loggedIn = !!state.user;
+  if (!els.accountBtn) return;
+  els.accountBtn.title = loggedIn ? 'Личный кабинет' : 'Войти';
+  els.accountBtn.setAttribute('aria-label', loggedIn ? 'Личный кабинет' : 'Войти');
+}
+
+function updateVoteButtons() {
+  const vote = state.currentVote;
+  els.likeBtn?.classList.toggle('active', vote === 'like');
+  els.likeBtn?.classList.toggle('like', vote === 'like');
+  els.dislikeBtn?.classList.toggle('active', vote === 'dislike');
+  els.dislikeBtn?.classList.toggle('dislike', vote === 'dislike');
+}
+
+function updateAuthUI() {
+  updateAccountButton();
+  setMessage(els.authMessage, '');
+  setMessage(els.settingsMessage, '');
+  if (els.userEmail) els.userEmail.textContent = state.user?.email || '—';
+  if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
+  if (els.hideLikedToggle) els.hideLikedToggle.checked = !!state.profile?.hide_liked;
+  if (els.hideDislikedToggle) els.hideDislikedToggle.checked = !!state.profile?.hide_disliked;
+  if (els.settingsEmail) els.settingsEmail.value = state.user?.email || '';
+  syncThemeInputs();
+}
+
+async function ensureProfileExists() {
+  if (!state.user) return;
+  const payload = {
+    id: state.user.id,
+    email: state.user.email,
+  };
+  const { error } = await withTimeout(supabase.from('profiles').upsert(payload, { onConflict: 'id' }), 'ensure profile');
+  if (error) throw error;
+}
+
+async function loadProfile() {
+  if (!state.user) {
+    state.profile = null;
+    updateAuthUI();
+    return;
+  }
+
+  const { data, error } = await withTimeout(
+    supabase.from('profiles').select('id,email,role,hide_disliked,hide_liked,light_accent,dark_accent').eq('id', state.user.id).maybeSingle(),
+    'load profile'
+  );
+  if (error) throw error;
+  state.profile = data || null;
+
+  if (state.profile?.light_accent) localStorage.setItem(LIGHT_ACCENT_KEY, state.profile.light_accent);
+  if (state.profile?.dark_accent) localStorage.setItem(DARK_ACCENT_KEY, state.profile.dark_accent);
+  setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
+  updateAuthUI();
+}
+
+async function restoreSession() {
+  try {
+    const { data, error } = await withTimeout(supabase.auth.getSession(), 'get session');
+    if (error) throw error;
+    state.user = data?.session?.user || null;
+  } catch {
+    state.user = null;
+  }
+}
+
 async function fetchApprovedQuotes() {
   const cached = readQuotesCache();
   if (cached?.length) return cached;
-  const quotesRes = await withTimeout(
+  const { data, error } = await withTimeout(
     supabase.from('quotes').select('id,text,status').eq('status', 'approved'),
     'load quotes'
   );
-  if (quotesRes.error) throw quotesRes.error;
-  const quotes = quotesRes.data || [];
+  if (error) throw error;
+  const quotes = data || [];
   saveQuotesCache(quotes);
   return quotes;
+}
+
+async function loadUserVote(quoteId) {
+  if (!state.user || !quoteId) {
+    state.currentVote = null;
+    updateVoteButtons();
+    return;
+  }
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('quote_votes').select('vote').eq('quote_id', quoteId).eq('user_id', state.user.id).maybeSingle(),
+      'load current vote'
+    );
+    if (error) throw error;
+    state.currentVote = data?.vote || null;
+  } catch {
+    state.currentVote = null;
+  }
+  updateVoteButtons();
+}
+
+async function getVoteIds(kind, force = false) {
+  if (!state.user) return [];
+  if (!force) {
+    if (kind === 'like' && state.likedIds) return state.likedIds;
+    if (kind === 'dislike' && state.dislikedIds) return state.dislikedIds;
+  }
+
+  const { data, error } = await withTimeout(
+    supabase.from('quote_votes').select('quote_id').eq('user_id', state.user.id).eq('vote', kind),
+    `load ${kind} ids`
+  );
+  if (error) throw error;
+  const ids = (data || []).map((item) => item.quote_id).filter(Boolean);
+  if (kind === 'like') state.likedIds = ids;
+  if (kind === 'dislike') state.dislikedIds = ids;
+  return ids;
+}
+
+async function filterQuotesForUser(quotes) {
+  if (!state.user || !state.profile) return quotes;
+  let result = [...quotes];
+  if (state.profile.hide_liked) {
+    const likedIds = await getVoteIds('like');
+    result = result.filter((quote) => !likedIds.includes(quote.id));
+  }
+  if (state.profile.hide_disliked) {
+    const dislikedIds = await getVoteIds('dislike');
+    result = result.filter((quote) => !dislikedIds.includes(quote.id));
+  }
+  return result;
+}
+
+async function loadRandomQuote() {
+  if (!state.currentQuote && !restoreCachedQuoteToUI()) {
+    if (els.quoteText) els.quoteText.textContent = 'Загрузка цитаты...';
+  }
+
+  try {
+    const quotes = await fetchApprovedQuotes();
+    let pool = await filterQuotesForUser(quotes);
+    if (!pool.length) pool = quotes;
+    if (!pool.length) {
+      if (els.quoteText) els.quoteText.textContent = 'Пока нет опубликованных цитат.';
+      return;
+    }
+
+    const available = pool.filter((item) => item.id !== state.currentQuote?.id);
+    const list = available.length ? available : pool;
+    const selected = list[Math.floor(Math.random() * list.length)];
+    showQuote(selected, true);
+    await loadUserVote(selected.id);
+  } catch (error) {
+    console.warn('loadRandomQuote:', error);
+    setMessage(els.globalMessage, normalizeError(error), 'error');
+  }
+}
+
+async function loadQuoteById(quoteId) {
+  if (!quoteId) return false;
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('quotes').select('id,text,status').eq('id', quoteId).maybeSingle(),
+      'load quote by id'
+    );
+    if (error) throw error;
+    if (!data || data.status !== 'approved') return false;
+
+    const filtered = await filterQuotesForUser([data]);
+    if (!filtered.length) return false;
+
+    showQuote(data, true);
+    await loadUserVote(data.id);
+    return true;
+  } catch (error) {
+    console.warn('loadQuoteById:', error);
+    return false;
+  }
+}
+
+async function copyQuote() {
+  const shareText = `${state.currentQuote?.text || ''}\n\n${getQuoteUrl()}`;
+  try {
+    await navigator.clipboard.writeText(shareText.trim());
+    setMessage(els.globalMessage, 'Цитата и ссылка скопированы.', 'success');
+  } catch {
+    setMessage(els.globalMessage, 'Не удалось скопировать.', 'error');
+  }
 }
 
 function isMobileLikeDevice() {
@@ -243,29 +469,27 @@ function roundedRect(ctx, x, y, w, h, r) {
 }
 
 function wrapLines(ctx, text, maxWidth) {
-  const paragraphs = String(text || '').split(/\n+/);
   const lines = [];
-  paragraphs.forEach((paragraph, idx) => {
+  const paragraphs = String(text || '').split(/\n+/);
+  for (const [index, paragraph] of paragraphs.entries()) {
     const words = paragraph.split(/\s+/).filter(Boolean);
     let line = '';
     for (const word of words) {
       const test = line ? `${line} ${word}` : word;
-      if (ctx.measureText(test).width <= maxWidth) {
-        line = test;
-      } else {
+      if (ctx.measureText(test).width <= maxWidth) line = test;
+      else {
         if (line) lines.push(line);
         line = word;
       }
     }
     if (line) lines.push(line);
-    if (idx < paragraphs.length - 1) lines.push('');
-  });
+    if (index < paragraphs.length - 1) lines.push('');
+  }
   return lines;
 }
 
 async function generateShareImageBlob() {
   const quoteText = state.currentQuote?.text || '';
-  const quoteUrl = getQuoteUrl();
   const styles = getComputedStyle(document.body);
   const bg = styles.getPropertyValue('--bg').trim() || '#120f1a';
   const surface = styles.getPropertyValue('--surface').trim() || '#191420';
@@ -282,310 +506,86 @@ async function generateShareImageBlob() {
 
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   ctx.fillStyle = primarySoft;
   ctx.beginPath();
-  ctx.arc(180, 120, 200, 0, Math.PI * 2);
+  ctx.arc(180, 120, 220, 0, Math.PI * 2);
   ctx.fill();
 
-  const cardX = 72;
-  const cardY = 96;
-  const cardW = 936;
-  const cardH = 1158;
-  ctx.save();
-  roundedRect(ctx, cardX, cardY, cardW, cardH, 42);
+  const x = 72;
+  const y = 96;
+  const w = 936;
+  const h = 1158;
+  roundedRect(ctx, x, y, w, h, 42);
   ctx.fillStyle = surface;
   ctx.fill();
   ctx.lineWidth = 2;
   ctx.strokeStyle = border;
   ctx.stroke();
-  ctx.restore();
 
   ctx.save();
-  roundedRect(ctx, cardX + 56, cardY + 52, 78, 78, 24);
+  roundedRect(ctx, x + 56, y + 52, 78, 78, 24);
   ctx.fillStyle = primarySoft;
   ctx.fill();
   ctx.font = '48px Spectral';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = primary;
-  ctx.fillText('✦', cardX + 95, cardY + 92);
+  ctx.fillText('✦', x + 95, y + 92);
   ctx.restore();
 
   ctx.fillStyle = muted;
-  ctx.font = '600 36px Spectral';
+  ctx.font = '600 38px Spectral';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('Мудрость дня', cardX + 160, cardY + 103);
+  ctx.fillText('Мудрость дня', x + 164, y + 100);
 
   ctx.fillStyle = text;
-  ctx.font = '500 62px Spectral';
-  const lines = wrapLines(ctx, `«${quoteText}»`, cardW - 140);
-  const lineHeight = 84;
-  const blockHeight = lines.length * lineHeight;
-  let y = cardY + Math.max(280, (cardH - blockHeight) / 2 - 40);
-  for (const line of lines) {
-    ctx.fillText(line, cardX + 70, y);
-    y += lineHeight;
-  }
+  ctx.font = '600 64px Spectral';
+  const textX = x + 84;
+  const textY = y + 220;
+  const lineHeight = 88;
+  const lines = wrapLines(ctx, quoteText, w - 168);
+  lines.slice(0, 10).forEach((line, index) => {
+    ctx.fillText(line, textX, textY + index * lineHeight);
+  });
 
-  ctx.strokeStyle = border;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cardX + 70, cardY + cardH - 180);
-  ctx.lineTo(cardX + cardW - 70, cardY + cardH - 180);
-  ctx.stroke();
-
-  ctx.fillStyle = muted;
-  ctx.font = '400 28px Spectral';
-  ctx.fillText(quoteUrl.replace(/^https?:\/\//, ''), cardX + 70, cardY + cardH - 115);
-  ctx.fillStyle = primary;
-  ctx.font = '600 30px Spectral';
-  ctx.fillText('Мудрость дня', cardX + 70, cardY + cardH - 70);
-
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  return blob;
-}
-
-function updateAccountButton() {
-  if (!els.accountBtn) return;
-  const loggedIn = !!state.user;
-  els.accountBtn.title = loggedIn ? 'Личный кабинет' : 'Войти';
-  els.accountBtn.setAttribute('aria-label', loggedIn ? 'Личный кабинет' : 'Войти');
-}
-
-function updateAuthUI() {
-  updateAccountButton();
-  if (els.userEmail) els.userEmail.textContent = state.user?.email || '—';
-
-  if (els.adminLink) {
-    const isAdmin = state.profile?.role === 'admin';
-    els.adminLink.classList.toggle('hidden-link', !isAdmin);
-    els.adminLink.style.display = isAdmin ? 'inline-flex' : 'none';
-  }
-
-  if (els.showOnlyLikedToggle) {
-    els.showOnlyLikedToggle.checked = !!state.profile?.show_only_liked;
-    els.showOnlyLikedToggle.disabled = !state.user;
-  }
-
-  if (els.hideDislikedToggle) {
-    els.hideDislikedToggle.checked = !!state.profile?.hide_disliked;
-    els.hideDislikedToggle.disabled = !state.user;
-  }
-}
-
-function updateVoteButtons() {
-  if (els.likeBtn) {
-    const active = state.currentVote === 'like';
-    els.likeBtn.classList.toggle('active', active);
-    els.likeBtn.classList.toggle('like', active);
-    els.likeBtn.disabled = false;
-  }
-  if (els.dislikeBtn) {
-    const active = state.currentVote === 'dislike';
-    els.dislikeBtn.classList.toggle('active', active);
-    els.dislikeBtn.classList.toggle('dislike', active);
-    els.dislikeBtn.disabled = false;
-  }
-}
-
-function clearStoredSession() {
-  try {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.toLowerCase().includes('supabase')) localStorage.removeItem(key);
-    });
-    sessionStorage.clear();
-  } catch (error) {
-    console.warn('clearStoredSession:', error);
-  }
-}
-
-async function ensureProfileExists() {
-  if (!state.user) return;
-  try {
-    const { error } = await withTimeout(
-      supabase.from('profiles').upsert(
-        { id: state.user.id, email: state.user.email },
-        { onConflict: 'id' }
-      ),
-      'ensure profile'
-    );
-    if (error) console.warn('ensureProfileExists:', error);
-  } catch (error) {
-    console.warn('ensureProfileExists timeout/fail:', error);
-  }
-}
-
-async function loadProfile() {
-  if (!state.user) {
-    state.profile = null;
-    updateAuthUI();
-    return;
-  }
-
-  try {
-    const { data, error } = await withTimeout(
-      supabase.from('profiles').select('id,email,role,hide_disliked,show_only_liked').eq('id', state.user.id).maybeSingle(),
-      'load profile'
-    );
-
-    if (error) {
-      console.warn('loadProfile:', error);
-      state.profile = null;
-    } else {
-      state.profile = data || null;
-    }
-  } catch (error) {
-    console.warn('loadProfile timeout/fail:', error);
-    state.profile = null;
-  }
-
-  updateAuthUI();
-}
-
-async function loadUserVote(quoteId) {
-  if (!state.user || !quoteId) {
-    state.currentVote = null;
-    updateVoteButtons();
-    return;
-  }
-
-  try {
-    const { data, error } = await withTimeout(
-      supabase.from('quote_votes').select('vote').eq('quote_id', quoteId).eq('user_id', state.user.id).maybeSingle(),
-      'load vote'
-    );
-
-    if (error) {
-      console.warn('loadUserVote:', error);
-      state.currentVote = null;
-    } else {
-      state.currentVote = data?.vote || null;
-    }
-  } catch (error) {
-    console.warn('loadUserVote timeout/fail:', error);
-    state.currentVote = null;
-  }
-
-  updateVoteButtons();
-}
-
-async function getVoteIds(voteType) {
-  if (!state.user) return [];
-  try {
-    const { data, error } = await withTimeout(
-      supabase.from('quote_votes').select('quote_id').eq('user_id', state.user.id).eq('vote', voteType),
-      `load ${voteType} ids`
-    );
-    if (error) throw error;
-    return (data || []).map((item) => item.quote_id).filter(Boolean);
-  } catch (error) {
-    console.warn(`getVoteIds ${voteType}:`, error);
-    return [];
-  }
-}
-
-async function loadRandomQuote() {
-  setMessage(els.globalMessage, '');
-  if (els.quoteText && !state.currentQuote?.text) els.quoteText.textContent = 'Загрузка цитаты...';
-
-  try {
-    const [quotes, likedIds, dislikedIds] = await Promise.all([
-      fetchApprovedQuotes(),
-      state.user && state.profile?.show_only_liked ? getVoteIds('like') : Promise.resolve([]),
-      state.user && state.profile?.hide_disliked ? getVoteIds('dislike') : Promise.resolve([]),
-    ]);
-
-    let filteredQuotes = quotes || [];
-    if (likedIds.length) {
-      const likedSet = new Set(likedIds);
-      filteredQuotes = filteredQuotes.filter((quote) => likedSet.has(quote.id));
-    }
-    if (dislikedIds.length) {
-      const dislikedSet = new Set(dislikedIds);
-      filteredQuotes = filteredQuotes.filter((quote) => !dislikedSet.has(quote.id));
-    }
-
-    if (!filteredQuotes.length) {
-      state.currentQuote = null;
-      state.currentVote = null;
-      if (els.quoteText) {
-        if (state.profile?.show_only_liked) {
-          els.quoteText.textContent = 'В любимых пока пусто.';
-        } else if (state.profile?.hide_disliked) {
-          els.quoteText.textContent = 'Под подходящий фильтр пока ничего не осталось.';
-        } else {
-          els.quoteText.textContent = 'Пока нет опубликованных цитат.';
-        }
-      }
-      updateVoteButtons();
-      return;
-    }
-
-    const random = filteredQuotes[Math.floor(Math.random() * filteredQuotes.length)];
-    showQuote(random, true);
-    await loadUserVote(random.id);
-  } catch (error) {
-    console.warn('loadRandomQuote:', error);
-    if (els.quoteText) els.quoteText.textContent = 'Не удалось загрузить цитаты.';
-    state.currentQuote = null;
-    state.currentVote = null;
-    updateVoteButtons();
-    setMessage(els.globalMessage, normalizeError(error), 'error');
-  }
-}
-
-async function copyQuote() {
-  if (!state.currentQuote?.text) return;
-  try {
-    await navigator.clipboard.writeText(state.currentQuote.text);
-    setMessage(els.globalMessage, 'Скопировано.', 'success');
-  } catch {
-    setMessage(els.globalMessage, 'Не удалось скопировать.', 'error');
-  }
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Не удалось создать изображение.'));
+    }, 'image/png');
+  });
 }
 
 async function shareQuote() {
   if (!state.currentQuote?.text) return;
   const quoteUrl = getQuoteUrl();
-  const shareText = `«${state.currentQuote.text}»
+  const textOnly = `${state.currentQuote.text}\n\n${quoteUrl}`;
 
-${quoteUrl}`;
-
-  if (navigator.share) {
-    if (isMobileLikeDevice()) {
-      try {
-        const blob = await generateShareImageBlob();
-        if (blob) {
-          const file = new File([blob], `mudrost-${state.currentQuote.id}.png`, { type: 'image/png' });
-          if (!navigator.canShare || navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              title: 'Мудрость дня',
-              text: shareText,
-              files: [file],
-            });
-            return;
-          }
-        }
-      } catch (error) {
-        console.warn('mobile share image fallback:', error);
-      }
-    }
-
+  if (navigator.share && isMobileLikeDevice()) {
     try {
-      await navigator.share({
-        title: 'Мудрость дня',
-        text: shareText,
-      });
+      const blob = await generateShareImageBlob();
+      const file = new File([blob], 'mudrost-day.png', { type: 'image/png' });
+      const payload = { text: textOnly, url: quoteUrl, title: 'Мудрость дня' };
+      if (navigator.canShare?.({ files: [file] })) {
+        payload.files = [file];
+      }
+      await navigator.share(payload);
       return;
-    } catch {
-      return;
+    } catch (error) {
+      console.warn('shareQuote mobile:', error);
     }
   }
 
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Мудрость дня', text: textOnly, url: quoteUrl });
+      return;
+    } catch {}
+  }
+
   try {
-    await navigator.clipboard.writeText(shareText);
+    await navigator.clipboard.writeText(textOnly);
     setMessage(els.globalMessage, 'Цитата и ссылка скопированы.', 'success');
   } catch {
     setMessage(els.globalMessage, 'Не удалось поделиться.', 'error');
@@ -602,22 +602,17 @@ async function signIn() {
   setMessage(els.authMessage, 'Пробуем войти...');
 
   try {
-    const { data, error } = await withTimeout(
-      supabase.auth.signInWithPassword({ email, password }),
-      'sign in'
-    );
+    const { data, error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }), 'sign in');
     if (error) throw error;
-
     state.user = data.user || data.session?.user || null;
     closeModal(els.authModal);
     els.authForm?.reset();
-    setMessage(els.authMessage, '');
     setMessage(els.globalMessage, 'Вход выполнен.', 'success');
-
+    state.likedIds = null;
+    state.dislikedIds = null;
     await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
     await loadRandomQuote();
   } catch (error) {
-    console.warn('signIn:', error);
     setMessage(els.authMessage, normalizeError(error), 'error');
   } finally {
     els.signInBtn.disabled = false;
@@ -635,26 +630,20 @@ async function signUp() {
   setMessage(els.authMessage, 'Создаём аккаунт...');
 
   try {
-    const { data, error } = await withTimeout(
-      supabase.auth.signUp({ email, password }),
-      'sign up'
-    );
+    const { data, error } = await withTimeout(supabase.auth.signUp({ email, password }), 'sign up');
     if (error) throw error;
-
     state.user = data.user || data.session?.user || null;
 
     if (state.user) {
       closeModal(els.authModal);
       els.authForm?.reset();
-      setMessage(els.authMessage, '');
       setMessage(els.globalMessage, 'Аккаунт создан.', 'success');
       await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
       await loadRandomQuote();
     } else {
-      setMessage(els.authMessage, 'Аккаунт создан, но в Supabase всё ещё включено подтверждение почты. Выключи Confirm email в настройках Auth.', 'info');
+      setMessage(els.authMessage, 'Аккаунт создан, но подтверждение почты всё ещё включено в Supabase.', 'info');
     }
   } catch (error) {
-    console.warn('signUp:', error);
     setMessage(els.authMessage, normalizeError(error), 'error');
   } finally {
     els.signInBtn.disabled = false;
@@ -665,17 +654,15 @@ async function signUp() {
 async function signOutUser() {
   if (els.signOutBtn) els.signOutBtn.disabled = true;
   try {
-    await Promise.race([
-      supabase.auth.signOut(),
-      new Promise((resolve) => setTimeout(resolve, 2500)),
-    ]);
-  } catch (error) {
-    console.warn('signOutUser:', error);
-  } finally {
+    await Promise.race([supabase.auth.signOut(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+  } catch {}
+  finally {
     clearStoredSession();
     state.user = null;
     state.profile = null;
     state.currentVote = null;
+    state.likedIds = null;
+    state.dislikedIds = null;
     updateAuthUI();
     updateVoteButtons();
     closeModal(els.accountModal);
@@ -695,7 +682,6 @@ async function applyVoteToQuote(quoteId, voteType) {
     if (error) throw error;
     currentVote = data?.vote || null;
   } catch (error) {
-    console.warn('applyVoteToQuote precheck:', error);
     setMessage(els.globalMessage, normalizeError(error), 'error');
     return false;
   }
@@ -710,17 +696,15 @@ async function applyVoteToQuote(quoteId, voteType) {
       if (state.currentQuote?.id === quoteId) state.currentVote = null;
     } else {
       const { error } = await withTimeout(
-        supabase.from('quote_votes').upsert({
-          quote_id: quoteId,
-          user_id: state.user.id,
-          vote: voteType,
-        }, { onConflict: 'quote_id,user_id' }),
+        supabase.from('quote_votes').upsert({ quote_id: quoteId, user_id: state.user.id, vote: voteType }, { onConflict: 'quote_id,user_id' }),
         'save vote'
       );
       if (error) throw error;
       if (state.currentQuote?.id === quoteId) state.currentVote = voteType;
     }
 
+    state.likedIds = null;
+    state.dislikedIds = null;
     if (state.currentQuote?.id === quoteId) updateVoteButtons();
 
     await Promise.allSettled([
@@ -728,16 +712,11 @@ async function applyVoteToQuote(quoteId, voteType) {
       !els.dislikedModal.hidden ? openDisliked(true) : Promise.resolve(),
     ]);
 
-    if ((voteType === 'dislike' && state.profile?.hide_disliked) ||
-        (voteType === 'like' && state.profile?.show_only_liked) ||
-        currentVote === 'dislike' ||
-        currentVote === 'like') {
+    if ((currentVote === 'like' || currentVote === 'dislike') || state.profile?.hide_liked || state.profile?.hide_disliked) {
       await loadRandomQuote();
     }
-
     return true;
   } catch (error) {
-    console.warn('applyVoteToQuote save:', error);
     setMessage(els.globalMessage, normalizeError(error), 'error');
     return false;
   }
@@ -753,7 +732,6 @@ async function vote(voteType) {
 
   els.likeBtn.disabled = true;
   els.dislikeBtn.disabled = true;
-
   try {
     await applyVoteToQuote(state.currentQuote.id, voteType);
   } finally {
@@ -764,71 +742,58 @@ async function vote(voteType) {
 
 async function saveProfileSetting(field, value) {
   if (!state.user) return false;
-  if (state.profile) state.profile[field] = value;
-
   try {
     const { error } = await withTimeout(
       supabase.from('profiles').update({ [field]: value }).eq('id', state.user.id),
       `save ${field}`
     );
     if (error) throw error;
+    if (state.profile) state.profile[field] = value;
     updateAuthUI();
     await loadRandomQuote();
     return true;
   } catch (error) {
-    console.warn(`saveProfileSetting ${field}:`, error);
     setMessage(els.globalMessage, normalizeError(error), 'error');
     return false;
   }
 }
 
-function renderVoteList(targetEl, quotes, kind) {
-  targetEl.innerHTML = quotes.map((quote) => {
-    const currentVote = kind === 'like' ? 'like' : 'dislike';
-    const likeActive = currentVote === 'like';
-    const dislikeActive = currentVote === 'dislike';
-    return `
-      <article class="favorite-item" data-quote-id="${quote.id}">
-        <p>${escapeHtml(quote.text)}</p>
-        <div class="favorite-item__actions">
-          <button class="icon-btn vote-btn ${likeActive ? 'active like' : ''}" type="button" data-vote-list="like" data-quote-id="${quote.id}" aria-label="Нравится" title="Нравится">
-            <span class="material-symbols-outlined">thumb_up</span>
-          </button>
-          <button class="icon-btn vote-btn ${dislikeActive ? 'active dislike' : ''}" type="button" data-vote-list="dislike" data-quote-id="${quote.id}" aria-label="Не нравится" title="Не нравится">
-            <span class="material-symbols-outlined">thumb_down</span>
-          </button>
-        </div>
-      </article>
-    `;
-  }).join('');
+function renderVoteList(targetEl, quotes, activeVote) {
+  targetEl.innerHTML = quotes.map((quote) => `
+    <article class="favorite-item" data-quote-id="${quote.id}">
+      <p>${escapeHtml(quote.text)}</p>
+      <div class="favorite-item__actions">
+        <button class="icon-btn vote-btn ${activeVote === 'like' ? 'active like' : ''}" type="button" data-vote-list="like" data-quote-id="${quote.id}" aria-label="Нравится" title="Нравится">
+          <span class="material-symbols-outlined">thumb_up</span>
+        </button>
+        <button class="icon-btn vote-btn ${activeVote === 'dislike' ? 'active dislike' : ''}" type="button" data-vote-list="dislike" data-quote-id="${quote.id}" aria-label="Не нравится" title="Не нравится">
+          <span class="material-symbols-outlined">thumb_down</span>
+        </button>
+      </div>
+    </article>
+  `).join('');
 }
 
 async function loadVoteList(kind) {
   const messageEl = kind === 'like' ? els.favoritesMessage : els.dislikedMessage;
   const listEl = kind === 'like' ? els.favoritesList : els.dislikedList;
+  const ids = await getVoteIds(kind, true);
 
-  const idsRes = await withTimeout(
-    supabase.from('quote_votes').select('quote_id').eq('user_id', state.user.id).eq('vote', kind),
-    `load ${kind} ids`
-  );
-  if (idsRes.error) throw idsRes.error;
-
-  const ids = (idsRes.data || []).map((item) => item.quote_id).filter(Boolean);
   if (!ids.length) {
-    setMessage(messageEl, kind === 'like' ? 'Пока ничего не лайкала.' : 'Пока ничего не дизлайкала.');
+    setMessage(messageEl, kind === 'like' ? 'Пока нет лайкнутых цитат.' : 'Пока нет дизлайкнутых цитат.');
     listEl.innerHTML = '';
     return;
   }
 
-  const quotesRes = await withTimeout(
+  const { data, error } = await withTimeout(
     supabase.from('quotes').select('id,text,status').in('id', ids).eq('status', 'approved'),
     `load ${kind} quotes`
   );
-  if (quotesRes.error) throw quotesRes.error;
+  if (error) throw error;
 
-  const quotes = quotesRes.data || [];
+  const quotes = data || [];
   if (!quotes.length) {
-    setMessage(messageEl, kind === 'like' ? 'Пока ничего не лайкала.' : 'Пока ничего не дизлайкала.');
+    setMessage(messageEl, kind === 'like' ? 'Пока нет лайкнутых цитат.' : 'Пока нет дизлайкнутых цитат.');
     listEl.innerHTML = '';
     return;
   }
@@ -843,16 +808,13 @@ async function openFavorites(refreshOnly = false) {
     openModal(els.authModal);
     return;
   }
-
   if (!refreshOnly) {
     setMessage(els.favoritesMessage, 'Загружаем...');
     openModal(els.favoritesModal);
   }
-
   try {
     await loadVoteList('like');
   } catch (error) {
-    console.warn('openFavorites:', error);
     setMessage(els.favoritesMessage, normalizeError(error), 'error');
   }
 }
@@ -863,16 +825,13 @@ async function openDisliked(refreshOnly = false) {
     openModal(els.authModal);
     return;
   }
-
   if (!refreshOnly) {
     setMessage(els.dislikedMessage, 'Загружаем...');
     openModal(els.dislikedModal);
   }
-
   try {
     await loadVoteList('dislike');
   } catch (error) {
-    console.warn('openDisliked:', error);
     setMessage(els.dislikedMessage, normalizeError(error), 'error');
   }
 }
@@ -883,52 +842,133 @@ async function sendSuggestion() {
 
   els.suggestionBtn.disabled = true;
   setMessage(els.suggestionMessage, 'Отправляем...');
-
   try {
     const { error } = await withTimeout(
-      supabase.from('quote_suggestions').insert({
-        text,
-        user_id: state.user?.id || null,
-      }),
+      supabase.from('quote_suggestions').insert({ text, user_id: state.user?.id || null }),
       'send suggestion'
     );
     if (error) throw error;
     els.suggestionText.value = '';
     setMessage(els.suggestionMessage, 'Отправлено.', 'success');
   } catch (error) {
-    console.warn('sendSuggestion:', error);
     setMessage(els.suggestionMessage, normalizeError(error), 'error');
   } finally {
     els.suggestionBtn.disabled = false;
   }
 }
 
+async function saveSettings() {
+  if (!state.user) return;
+  const nextEmail = els.settingsEmail?.value.trim();
+  const nextPassword = els.settingsPassword?.value.trim();
+  const lightAccent = els.lightAccentInput?.value || DEFAULT_LIGHT_ACCENT;
+  const darkAccent = els.darkAccentInput?.value || DEFAULT_DARK_ACCENT;
 
-async function loadQuoteById(quoteId) {
-  if (!quoteId) return false;
+  if (!nextEmail && !nextPassword && !lightAccent && !darkAccent) {
+    setMessage(els.settingsMessage, 'Нет изменений для сохранения.', 'info');
+    return;
+  }
+
+  els.saveSettingsBtn.disabled = true;
+  setMessage(els.settingsMessage, 'Сохраняем...');
+
   try {
-    const { data, error } = await withTimeout(
-      supabase.from('quotes').select('id,text,status').eq('id', quoteId).maybeSingle(),
-      'load quote by id'
+    const updatePayload = {};
+    if (nextEmail && nextEmail !== state.user.email) updatePayload.email = nextEmail;
+    if (nextPassword) updatePayload.password = nextPassword;
+
+    if (Object.keys(updatePayload).length) {
+      const { data, error } = await withTimeout(supabase.auth.updateUser(updatePayload), 'update auth');
+      if (error) throw error;
+      if (data?.user) state.user = data.user;
+    }
+
+    localStorage.setItem(LIGHT_ACCENT_KEY, lightAccent);
+    localStorage.setItem(DARK_ACCENT_KEY, darkAccent);
+
+    const profileUpdate = {
+      email: state.user?.email || nextEmail || state.profile?.email || null,
+      light_accent: lightAccent,
+      dark_accent: darkAccent,
+    };
+
+    const { error: profileError } = await withTimeout(
+      supabase.from('profiles').update(profileUpdate).eq('id', state.user.id),
+      'update profile settings'
     );
-    if (error) throw error;
-    if (!data || data.status !== 'approved') return false;
+    if (profileError) throw profileError;
 
-    if (state.user && state.profile?.show_only_liked) {
-      const likedIds = await getVoteIds('like');
-      if (!likedIds.includes(data.id)) return false;
-    }
-    if (state.user && state.profile?.hide_disliked) {
-      const dislikedIds = await getVoteIds('dislike');
-      if (dislikedIds.includes(data.id)) return false;
-    }
-
-    showQuote(data, true);
-    await loadUserVote(data.id);
-    return true;
+    await loadProfile();
+    setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
+    setMessage(els.settingsMessage, 'Настройки сохранены.', 'success');
+    if (els.settingsPassword) els.settingsPassword.value = '';
   } catch (error) {
-    console.warn('loadQuoteById:', error);
-    return false;
+    setMessage(els.settingsMessage, normalizeError(error), 'error');
+  } finally {
+    els.saveSettingsBtn.disabled = false;
+  }
+}
+
+async function resetAccents() {
+  if (els.lightAccentInput) els.lightAccentInput.value = DEFAULT_LIGHT_ACCENT;
+  if (els.darkAccentInput) els.darkAccentInput.value = DEFAULT_DARK_ACCENT;
+  localStorage.setItem(LIGHT_ACCENT_KEY, DEFAULT_LIGHT_ACCENT);
+  localStorage.setItem(DARK_ACCENT_KEY, DEFAULT_DARK_ACCENT);
+  setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
+  if (state.user) {
+    await saveSettings();
+  }
+}
+
+async function loadStatsModal() {
+  setMessage(els.statsMessage, 'Загружаем...');
+  openModal(els.statsModal);
+
+  try {
+    const [votesRes, quotesRes] = await Promise.all([
+      withTimeout(supabase.from('quote_votes').select('quote_id,vote'), 'load vote stats'),
+      withTimeout(supabase.from('quotes').select('id,text,status').eq('status', 'approved'), 'load stats quotes'),
+    ]);
+    if (votesRes.error) throw votesRes.error;
+    if (quotesRes.error) throw quotesRes.error;
+
+    const counts = new Map();
+    for (const row of votesRes.data || []) {
+      const item = counts.get(row.quote_id) || { likes: 0, dislikes: 0 };
+      if (row.vote === 'like') item.likes += 1;
+      if (row.vote === 'dislike') item.dislikes += 1;
+      counts.set(row.quote_id, item);
+    }
+
+    const quotes = new Map((quotesRes.data || []).map((quote) => [quote.id, quote]));
+    let topLiked = null;
+    let topDisliked = null;
+
+    for (const [id, stat] of counts.entries()) {
+      if (!quotes.has(id)) continue;
+      if (!topLiked || stat.likes > topLiked.count) topLiked = { id, count: stat.likes };
+      if (!topDisliked || stat.dislikes > topDisliked.count) topDisliked = { id, count: stat.dislikes };
+    }
+
+    if (topLiked && quotes.get(topLiked.id)) {
+      els.topLikedText.textContent = quotes.get(topLiked.id).text;
+      els.topLikedMeta.textContent = `${topLiked.count} лайков`;
+    } else {
+      els.topLikedText.textContent = 'Пока данных нет.';
+      els.topLikedMeta.textContent = '—';
+    }
+
+    if (topDisliked && quotes.get(topDisliked.id)) {
+      els.topDislikedText.textContent = quotes.get(topDisliked.id).text;
+      els.topDislikedMeta.textContent = `${topDisliked.count} дизлайков`;
+    } else {
+      els.topDislikedText.textContent = 'Пока данных нет.';
+      els.topDislikedMeta.textContent = '—';
+    }
+
+    setMessage(els.statsMessage, '');
+  } catch (error) {
+    setMessage(els.statsMessage, normalizeError(error), 'error');
   }
 }
 
@@ -945,36 +985,17 @@ function bindModalEvents() {
   });
 }
 
-async function restoreSession() {
-  try {
-    const { data, error } = await withTimeout(supabase.auth.getSession(), 'get session');
-    if (error) throw error;
-    state.user = data?.session?.user || null;
-  } catch (error) {
-    console.warn('restoreSession:', error);
-    state.user = null;
-  }
-}
-
-function bindVoteListHandlers(container, kind) {
+function bindVoteListHandlers(container) {
   container?.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-vote-list]');
-    if (!button) return;
-    if (!state.user) return;
-
+    if (!button || !state.user) return;
     const voteType = button.dataset.voteList;
     const quoteId = button.dataset.quoteId;
     button.disabled = true;
     try {
       const ok = await applyVoteToQuote(quoteId, voteType);
       if (ok) {
-        if (kind === 'like') {
-          await openFavorites(true);
-          await openDisliked(true);
-        } else {
-          await openDisliked(true);
-          await openFavorites(true);
-        }
+        await Promise.allSettled([openFavorites(true), openDisliked(true)]);
       }
     } finally {
       button.disabled = false;
@@ -986,16 +1007,24 @@ function bindEvents() {
   bindModalEvents();
 
   els.themeBtn?.addEventListener('click', () => {
-    applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
+    const nextTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
+    applyTheme(nextTheme);
   });
 
-  els.accountBtn?.addEventListener('click', async () => {
+  els.statsBtn?.addEventListener('click', loadStatsModal);
+
+  els.accountBtn?.addEventListener('click', () => {
     if (state.user) {
       updateAuthUI();
       openModal(els.accountModal);
     } else {
       openModal(els.authModal);
     }
+  });
+
+  els.settingsBtn?.addEventListener('click', () => {
+    updateAuthUI();
+    openModal(els.settingsModal);
   });
 
   els.refreshBtn?.addEventListener('click', loadRandomQuote);
@@ -1011,36 +1040,40 @@ function bindEvents() {
   els.openFavoritesBtn?.addEventListener('click', () => openFavorites(false));
   els.openDislikedBtn?.addEventListener('click', () => openDisliked(false));
 
-  els.showOnlyLikedToggle?.addEventListener('change', async () => {
-    const previous = !!state.profile?.show_only_liked;
-    const next = !!els.showOnlyLikedToggle.checked;
-    const ok = await saveProfileSetting('show_only_liked', next);
-    if (!ok && els.showOnlyLikedToggle) els.showOnlyLikedToggle.checked = previous;
+  els.hideLikedToggle?.addEventListener('change', async () => {
+    const previous = !!state.profile?.hide_liked;
+    const next = !!els.hideLikedToggle.checked;
+    const ok = await saveProfileSetting('hide_liked', next);
+    if (!ok) els.hideLikedToggle.checked = previous;
   });
 
   els.hideDislikedToggle?.addEventListener('change', async () => {
     const previous = !!state.profile?.hide_disliked;
     const next = !!els.hideDislikedToggle.checked;
     const ok = await saveProfileSetting('hide_disliked', next);
-    if (!ok && els.hideDislikedToggle) els.hideDislikedToggle.checked = previous;
+    if (!ok) els.hideDislikedToggle.checked = previous;
   });
 
+  els.saveSettingsBtn?.addEventListener('click', saveSettings);
+  els.resetAccentBtn?.addEventListener('click', resetAccents);
   els.suggestionBtn?.addEventListener('click', sendSuggestion);
 
-  bindVoteListHandlers(els.favoritesList, 'like');
-  bindVoteListHandlers(els.dislikedList, 'dislike');
+  bindVoteListHandlers(els.favoritesList);
+  bindVoteListHandlers(els.dislikedList);
 
   els.authForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     signIn();
   });
+  els.settingsForm?.addEventListener('submit', (event) => event.preventDefault());
   els.suggestionForm?.addEventListener('submit', (event) => event.preventDefault());
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
     state.user = session?.user || null;
+    state.likedIds = null;
+    state.dislikedIds = null;
     if (state.user) {
-      await Promise.allSettled([ensureProfileExists(), loadProfile()]);
-      await loadUserVote(state.currentQuote?.id);
+      await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
     } else {
       state.profile = null;
       state.currentVote = null;
@@ -1052,18 +1085,20 @@ function bindEvents() {
 
 async function init() {
   initTheme();
+  syncThemeInputs();
   bindEvents();
+  restoreCachedQuoteToUI();
   await restoreSession();
   if (state.user) {
     await Promise.allSettled([ensureProfileExists(), loadProfile()]);
   } else {
     updateAuthUI();
   }
+
   const quoteFromUrl = new URL(window.location.href).searchParams.get('quote');
   const loadedById = quoteFromUrl ? await loadQuoteById(quoteFromUrl) : false;
   if (!loadedById) await loadRandomQuote();
 }
-
 
 window.addEventListener('unhandledrejection', (event) => {
   console.warn('Unhandled rejection:', event.reason);

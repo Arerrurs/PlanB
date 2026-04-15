@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Мудрость дня</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,9 +15,9 @@
   <main class="page">
     <section class="quote-card">
       <header class="topbar">
-        <div class="brand-mark" aria-hidden="true">
+        <button id="statsBtn" class="brand-mark brand-button" type="button" aria-label="Открыть статистику" title="Статистика">
           <span class="material-symbols-outlined">auto_stories</span>
-        </div>
+        </button>
         <div class="topbar-actions">
           <button id="themeBtn" class="icon-btn" type="button" aria-label="Сменить тему" title="Сменить тему">
             <span class="material-symbols-outlined">contrast</span>
@@ -97,7 +98,12 @@
         </button>
       </div>
       <div class="modal-body account-body">
-        <div class="account-email" id="userEmail">—</div>
+        <div class="account-row">
+          <div class="account-email" id="userEmail">—</div>
+          <button id="settingsBtn" class="icon-btn" type="button" aria-label="Настройки" title="Настройки">
+            <span class="material-symbols-outlined">settings</span>
+          </button>
+        </div>
 
         <div class="stack-buttons">
           <button id="openFavoritesBtn" class="text-btn" type="button">Любимые цитаты</button>
@@ -106,6 +112,53 @@
           <a id="adminLink" class="text-btn ghost hidden-link" href="./admin.html">Админка</a>
           <button id="signOutBtn" class="text-btn danger" type="button">Выйти</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="settingsModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Настройки</h2>
+        <button class="icon-btn" type="button" data-close="settingsModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="settingsForm" class="stack-form">
+          <section class="settings-section">
+            <h3>Данные аккаунта</h3>
+            <label class="field">
+              <span>Новая почта</span>
+              <input id="settingsEmail" type="email" autocomplete="email" placeholder="Оставь пустым, если не нужно менять" />
+            </label>
+            <label class="field">
+              <span>Новый пароль</span>
+              <input id="settingsPassword" type="password" autocomplete="new-password" placeholder="Оставь пустым, если не нужно менять" />
+            </label>
+          </section>
+
+          <section class="settings-section">
+            <h3>Акцентные цвета</h3>
+            <div class="theme-setting-grid">
+              <label class="field inline-field">
+                <span>Светлая тема</span>
+                <input id="lightAccentInput" type="color" value="#a855f7" />
+              </label>
+              <label class="field inline-field">
+                <span>Тёмная тема</span>
+                <input id="darkAccentInput" type="color" value="#f472b6" />
+              </label>
+            </div>
+          </section>
+
+          <div class="row-actions">
+            <button id="saveSettingsBtn" class="text-btn primary" type="button">Сохранить</button>
+            <button id="resetAccentBtn" class="text-btn" type="button">Сбросить цвета</button>
+          </div>
+          <div id="settingsMessage" class="message" aria-live="polite"></div>
+        </form>
       </div>
     </div>
   </div>
@@ -144,8 +197,8 @@
       </div>
       <div class="modal-body">
         <label class="setting-row">
-          <span>Показывать только любимые</span>
-          <input id="showOnlyLikedToggle" type="checkbox" />
+          <span>Не показывать любимые</span>
+          <input id="hideLikedToggle" type="checkbox" />
         </label>
         <div id="favoritesMessage" class="message" aria-live="polite"></div>
         <div id="favoritesList" class="favorites-list"></div>
@@ -169,6 +222,39 @@
         </label>
         <div id="dislikedMessage" class="message" aria-live="polite"></div>
         <div id="dislikedList" class="favorites-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="statsModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="statsModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Статистика</h2>
+        <button class="icon-btn" type="button" data-close="statsModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="statsMessage" class="message" aria-live="polite"></div>
+        <div class="mini-stats-grid">
+          <article class="mini-stat-card">
+            <div class="mini-stat-head like">
+              <span class="material-symbols-outlined">thumb_up</span>
+              <strong>Самая лайкнутая</strong>
+            </div>
+            <p id="topLikedText" class="mini-stat-text">—</p>
+            <div id="topLikedMeta" class="mini-stat-meta">—</div>
+          </article>
+          <article class="mini-stat-card">
+            <div class="mini-stat-head dislike">
+              <span class="material-symbols-outlined">thumb_down</span>
+              <strong>Самая дизлайкнутая</strong>
+            </div>
+            <p id="topDislikedText" class="mini-stat-text">—</p>
+            <div id="topDislikedMeta" class="mini-stat-meta">—</div>
+          </article>
+        </div>
       </div>
     </div>
   </div>

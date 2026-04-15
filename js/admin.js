@@ -45,6 +45,31 @@ let adminUser = null;
 let quoteStatsMap = new Map();
 
 
+const THEME_KEY = 'mudrost-theme';
+const LIGHT_ACCENT_KEY = 'mudrost-light-accent';
+const DARK_ACCENT_KEY = 'mudrost-dark-accent';
+const DEFAULT_LIGHT_ACCENT = '#a855f7';
+const DEFAULT_DARK_ACCENT = '#f472b6';
+
+function hexToRgb(hex) {
+  const value = hex.replace('#', '').trim();
+  const normalized = value.length === 3 ? value.split('').map((x) => x + x).join('') : value;
+  const int = Number.parseInt(normalized, 16);
+  return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255 };
+}
+
+function setAccentCssVar(color) {
+  const { r, g, b } = hexToRgb(color);
+  document.documentElement.style.setProperty('--primary', color);
+  document.documentElement.style.setProperty('--primary-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
+}
+
+function getStoredAccent(theme) {
+  return localStorage.getItem(theme === 'dark' ? DARK_ACCENT_KEY : LIGHT_ACCENT_KEY)
+    || (theme === 'dark' ? DEFAULT_DARK_ACCENT : DEFAULT_LIGHT_ACCENT);
+}
+
+
 function setMessage(el, text = '', type = 'info') {
   if (!el) return;
   el.textContent = text;
@@ -63,11 +88,12 @@ function escapeHtml(str) {
 
 function applyTheme(theme) {
   document.body.classList.toggle('dark', theme === 'dark');
-  localStorage.setItem('mudrost-theme', theme);
+  localStorage.setItem(THEME_KEY, theme);
+  setAccentCssVar(getStoredAccent(theme));
 }
 
 function initTheme() {
-  const saved = localStorage.getItem('mudrost-theme');
+  const saved = localStorage.getItem(THEME_KEY);
   if (saved === 'dark' || saved === 'light') return applyTheme(saved);
   applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 }

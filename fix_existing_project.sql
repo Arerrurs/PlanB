@@ -1,7 +1,10 @@
 create extension if not exists pgcrypto;
 
 alter table public.profiles add column if not exists hide_disliked boolean not null default false;
+alter table public.profiles add column if not exists hide_liked boolean not null default false;
 alter table public.profiles add column if not exists show_only_liked boolean not null default false;
+alter table public.profiles add column if not exists light_accent text not null default '#a855f7';
+alter table public.profiles add column if not exists dark_accent text not null default '#f472b6';
 
 alter table public.quotes add column if not exists updated_at timestamptz not null default now();
 
