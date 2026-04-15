@@ -243,8 +243,7 @@ function roundedRect(ctx, x, y, w, h, r) {
 }
 
 function wrapLines(ctx, text, maxWidth) {
-  const paragraphs = String(text || '').split(/
-+/);
+  const paragraphs = String(text || '').split(/\n+/);
   const lines = [];
   paragraphs.forEach((paragraph, idx) => {
     const words = paragraph.split(/\s+/).filter(Boolean);
