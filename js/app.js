@@ -72,6 +72,16 @@ function withTimeout(promise, label = 'request', ms = REQUEST_TIMEOUT_MS) {
   ]);
 }
 
+function updateQuoteUrl(quoteId) {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('quote', quoteId);
+    window.history.replaceState({}, '', url);
+  } catch (e) {
+    console.warn('Не удалось обновить URL:', e);
+  }
+}
+
 function setMessage(el, text = '', type = 'info') {
   if (!el) return;
   el.textContent = text;
