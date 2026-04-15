@@ -87,11 +87,24 @@ function normalizeError(error) {
   return error?.message || 'Что-то пошло не так.';
 }
 
+function bindPanelToggles() {
+  document.querySelectorAll('[data-panel-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const panelName = button.dataset.panelToggle;
+      const panel = document.querySelector(`[data-panel="${panelName}"]`);
+      const content = document.querySelector(`[data-panel-content="${panelName}"]`);
+      const icon = button.querySelector('.material-symbols-outlined');
+      if (!panel || !content || !icon) return;
+
+      const collapsed = panel.classList.toggle('collapsed');
+      content.hidden = collapsed;
+      icon.textContent = collapsed ? 'expand_more' : 'expand_less';
+    });
+  });
+}
+
 async function checkAccess() {
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
   if (sessionError) {
     setMessage(els.adminStatus, 'Ошибка чтения сессии.', 'error');
@@ -150,10 +163,7 @@ async function loadStats() {
 }
 
 async function loadQuoteVoteStats() {
-  const { data, error } = await supabase
-    .from('quote_votes')
-    .select('quote_id,vote');
-
+  const { data, error } = await supabase.from('quote_votes').select('quote_id,vote');
   quoteStatsMap = new Map();
 
   if (error || !data) {
@@ -333,11 +343,7 @@ async function saveEditedQuote() {
   setMessage(els.editQuoteMessage, 'Сохраняем...');
 
   try {
-    const { error } = await supabase
-      .from('quotes')
-      .update({ text, updated_at: new Date().toISOString() })
-      .eq('id', id);
-
+    const { error } = await supabase.from('quotes').update({ text, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
     setMessage(els.editQuoteMessage, 'Сохранено.', 'success');
     await refreshAll();
@@ -442,6 +448,7 @@ function bindModalEvents() {
 async function init() {
   initTheme();
   bindModalEvents();
+  bindPanelToggles();
 
   els.adminThemeBtn.addEventListener('click', () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
   els.refreshAdminBtn.addEventListener('click', refreshAll);

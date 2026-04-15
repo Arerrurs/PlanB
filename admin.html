@@ -36,60 +36,90 @@
       </section>
 
       <div id="adminContent" class="hidden">
-        <section class="stats-grid">
-          <article class="stat-card">
-            <span>Цитат</span>
-            <strong id="statQuotes">0</strong>
-          </article>
-          <article class="stat-card">
-            <span>На модерации</span>
-            <strong id="statSuggestions">0</strong>
-          </article>
-          <article class="stat-card">
-            <span>Лайков</span>
-            <strong id="statLikes">0</strong>
-          </article>
-          <article class="stat-card">
-            <span>Дизлайков</span>
-            <strong id="statDislikes">0</strong>
-          </article>
+        <section class="panel collapsible-panel" data-panel="stats">
+          <div class="panel-head">
+            <h2>Статистика</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="stats" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
+          </div>
+          <div class="panel-content" data-panel-content="stats">
+            <section class="stats-grid">
+              <article class="stat-card">
+                <span>Цитат</span>
+                <strong id="statQuotes">0</strong>
+              </article>
+              <article class="stat-card">
+                <span>На модерации</span>
+                <strong id="statSuggestions">0</strong>
+              </article>
+              <article class="stat-card">
+                <span>Лайков</span>
+                <strong id="statLikes">0</strong>
+              </article>
+              <article class="stat-card">
+                <span>Дизлайков</span>
+                <strong id="statDislikes">0</strong>
+              </article>
+            </section>
+          </div>
         </section>
 
-        <section class="panel">
+        <section class="panel collapsible-panel" data-panel="addQuote">
           <div class="panel-head">
             <h2>Добавить цитату</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="addQuote" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
           </div>
-          <div class="stack-form">
-            <label class="field">
-              <textarea id="newQuoteText" rows="4" placeholder="Текст цитаты..."></textarea>
-            </label>
-            <div class="row-actions single">
-              <button id="addQuoteBtn" class="text-btn primary" type="button">Добавить</button>
+          <div class="panel-content" data-panel-content="addQuote">
+            <div class="stack-form">
+              <label class="field">
+                <textarea id="newQuoteText" rows="4" placeholder="Текст цитаты..."></textarea>
+              </label>
+              <div class="row-actions single">
+                <button id="addQuoteBtn" class="text-btn primary" type="button">Добавить</button>
+              </div>
+              <div id="adminMessage" class="message"></div>
             </div>
-            <div id="adminMessage" class="message"></div>
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel collapsible-panel" data-panel="users">
           <div class="panel-head">
             <h2>Пользователи</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="users" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
           </div>
-          <div id="usersSummary" class="admin-subtitle panel-subtitle">Всего: 0</div>
-          <div id="usersList" class="admin-list compact-list"></div>
+          <div class="panel-content" data-panel-content="users">
+            <div id="usersSummary" class="admin-subtitle panel-subtitle">Всего: 0</div>
+            <div id="usersList" class="admin-list compact-list"></div>
+          </div>
         </section>
 
-        <section class="panel">
+        <section class="panel collapsible-panel" data-panel="quotes">
           <div class="panel-head">
             <h2>Цитаты</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="quotes" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
           </div>
-          <div id="quotesList" class="admin-list"></div>
+          <div class="panel-content" data-panel-content="quotes">
+            <div id="quotesList" class="admin-list"></div>
+          </div>
         </section>
 
-        <section class="panel">
+        <section class="panel collapsible-panel" data-panel="suggestions">
           <div class="panel-head">
             <h2>Предложенные цитаты</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="suggestions" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
           </div>
-          <div id="suggestionsList" class="admin-list"></div>
+          <div class="panel-content" data-panel-content="suggestions">
+            <div id="suggestionsList" class="admin-list"></div>
+          </div>
         </section>
       </div>
     </section>

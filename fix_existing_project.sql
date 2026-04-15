@@ -1,5 +1,7 @@
 create extension if not exists pgcrypto;
 
+alter table public.profiles add column if not exists hide_disliked boolean not null default false;
+
 alter table public.quotes add column if not exists updated_at timestamptz not null default now();
 
 create or replace function public.is_admin(uid uuid default auth.uid())
