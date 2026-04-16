@@ -816,9 +816,11 @@ async function signUp() {
 async function signOutUser() {
   if (els.signOutBtn) els.signOutBtn.disabled = true;
   try {
-    await Promise.race([supabase.auth.signOut(), new Promise((resolve) => setTimeout(resolve, 2500))]);
-  } catch {}
-  finally {
+    await Promise.race([
+      supabase.auth.signOut({ scope: 'local' }),
+      new Promise((resolve) => setTimeout(resolve, 2500))
+    ]);
+  } catch {} finally {
     clearStoredSession();
     state.user = null;
     state.profile = null;
@@ -828,7 +830,7 @@ async function signOutUser() {
     updateAuthUI();
     updateVoteButtons();
     closeModal(els.accountModal);
-    window.location.href = new URL('./index.html', window.location.href).href;
+    window.location.replace(new URL('./index.html', window.location.href).href);
   }
 }
 
@@ -1038,15 +1040,27 @@ async function saveSettings() {
   setMessage(els.settingsMessage, 'Сохраняем...');
 
   try {
+    const currentEmail = (state.user?.email || state.profile?.email || '').toLowerCase();
     if (nextPassword) {
-      const { data, error } = await withTimeout(supabase.auth.updateUser({ password: nextPassword }), 'update password', AUTH_TIMEOUT_MS);
+      const { data, error } = await withTimeout(
+        supabase.auth.updateUser({ password: nextPassword }),
+        'update password',
+        AUTH_TIMEOUT_MS
+      );
       if (error) throw error;
       if (data?.user) state.user = data.user;
     }
 
-    if (nextEmail && nextEmail !== (state.user?.email || '').toLowerCase()) {
-      const { error: emailError } = await withTimeout(supabase.auth.updateUser({ email: nextEmail }), 'update email', AUTH_TIMEOUT_MS);
+    let emailNotice = '';
+    if (nextEmail && nextEmail !== currentEmail) {
+      const redirectTo = new URL('./index.html', window.location.href).href;
+      const { error: emailError } = await withTimeout(
+        supabase.auth.updateUser({ email: nextEmail }, { emailRedirectTo: redirectTo }),
+        'update email',
+        AUTH_TIMEOUT_MS
+      );
       if (emailError) throw emailError;
+      emailNotice = ' Письмо для подтверждения новой почты уже отправлено.';
     }
 
     localStorage.setItem(LIGHT_ACCENT_KEY, lightAccent);
@@ -1055,24 +1069,22 @@ async function saveSettings() {
 
     const profileUpdate = {
       email: state.user?.email || state.profile?.email || null,
-      username: nextUsername || state.profile?.username || null,
+      username: nextUsername || null,
       light_accent: lightAccent,
       dark_accent: darkAccent,
       disable_timer: disableTimer,
     };
 
-    const { error: profileError } = await withTimeout(
-      supabase.from('profiles').update(profileUpdate).eq('id', state.user.id),
+    const { data: updatedProfile, error: profileError } = await withTimeout(
+      supabase.from('profiles').upsert({ id: state.user.id, ...profileUpdate }, { onConflict: 'id' }).select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent,disable_timer').maybeSingle(),
       'update profile settings'
     );
     if (profileError) throw profileError;
 
-    await loadProfile();
+    state.profile = updatedProfile || { ...(state.profile || {}), ...profileUpdate, id: state.user.id };
+    updateAuthUI();
     setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
     updateMinuteTimer();
-    const emailNotice = nextEmail && nextEmail !== (state.user?.email || '').toLowerCase()
-      ? ' Письмо для подтверждения новой почты уже отправлено.'
-      : '';
     setMessage(els.settingsMessage, `Настройки сохранены.${emailNotice}`, 'success');
     if (els.settingsPassword) els.settingsPassword.value = '';
     if (els.settingsEmailInput) els.settingsEmailInput.value = '';
@@ -1267,6 +1279,8 @@ function bindEvents() {
     state.likedIds = null;
     state.dislikedIds = null;
     if (state.user) {
+      closeModal(els.authModal);
+      closeModal(els.registerModal);
       await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
     } else {
       state.profile = null;
