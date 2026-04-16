@@ -403,38 +403,6 @@ async function loadSuggestions() {
   `).join('');
 }
 
-async function refreshAll()() {
-  const { data, error } = await supabase
-    .from('quote_suggestions')
-    .select('id,text,status,created_at,user_id')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    els.suggestionsList.innerHTML = '<div class="admin-empty">Не удалось загрузить предложения.</div>';
-    return;
-  }
-
-  if (!data?.length) {
-    els.suggestionsList.innerHTML = '<div class="admin-empty">Пока нет предложений.</div>';
-    return;
-  }
-
-  els.suggestionsList.innerHTML = data.map((item) => `
-    <article class="admin-item">
-      <div class="admin-item__text">${escapeHtml(item.text)}</div>
-      <div class="admin-item__meta">
-        <span class="${badgeClass(item.status)}">${escapeHtml(item.status)}</span>
-        <span>${new Date(item.created_at).toLocaleString('ru-RU')}</span>
-      </div>
-      <div class="admin-item__actions">
-        <button class="text-btn primary" type="button" data-action="approve-suggestion" data-id="${item.id}">Принять</button>
-        <button class="text-btn" type="button" data-action="reject-suggestion" data-id="${item.id}">Отклонить</button>
-        <button class="text-btn danger" type="button" data-action="delete-suggestion" data-id="${item.id}">Удалить</button>
-      </div>
-    </article>
-  `).join('');
-}
-
 async function refreshAll() {
   await Promise.all([
     loadStats(),
