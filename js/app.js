@@ -1003,6 +1003,49 @@ async function openDisliked(refreshOnly = false) {
   }
 }
 
+
+async function saveDisableTimerPreference() {
+  if (!state.user || !els.disableTimerInput) return;
+  const disableTimer = !!els.disableTimerInput.checked;
+  setTimerDisabled(disableTimer);
+  updateMinuteTimer();
+  setMessage(els.settingsMessage, 'Сохраняем...');
+
+  try {
+    const baseProfile = state.profile || {};
+    const payload = {
+      id: state.user.id,
+      email: state.user?.email || baseProfile.email || null,
+      username: normalizeUsername(baseProfile.username || state.user?.user_metadata?.username || '') || null,
+      light_accent: baseProfile.light_accent || getStoredAccent('light') || DEFAULT_LIGHT_ACCENT,
+      dark_accent: baseProfile.dark_accent || getStoredAccent('dark') || DEFAULT_DARK_ACCENT,
+      hide_liked: !!baseProfile.hide_liked,
+      hide_disliked: !!baseProfile.hide_disliked,
+      disable_timer: disableTimer,
+    };
+
+    const { data, error } = await withTimeout(
+      supabase
+        .from('profiles')
+        .upsert(payload, { onConflict: 'id' })
+        .select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent,disable_timer')
+        .maybeSingle(),
+      'save timer preference'
+    );
+    if (error) throw error;
+    state.profile = data || { ...baseProfile, ...payload };
+    if (typeof state.profile?.disable_timer === 'boolean') {
+      localStorage.setItem(TIMER_DISABLED_KEY, state.profile.disable_timer ? 'true' : 'false');
+    }
+    setMessage(els.settingsMessage, 'Сохранено.', 'success');
+  } catch (error) {
+    setTimerDisabled(!!state.profile?.disable_timer);
+    if (els.disableTimerInput) els.disableTimerInput.checked = isTimerDisabled();
+    updateMinuteTimer();
+    setMessage(els.settingsMessage, normalizeError(error), 'error');
+  }
+}
+
 async function sendSuggestion() {
   const text = els.suggestionText?.value.trim();
   if (!text) return setMessage(els.suggestionMessage, 'Напиши цитату.', 'error');
@@ -1260,6 +1303,7 @@ function bindEvents() {
   });
 
   els.saveSettingsBtn?.addEventListener('click', saveSettings);
+  els.disableTimerInput?.addEventListener('change', saveDisableTimerPreference);
   els.resetAccentBtn?.addEventListener('click', resetAccents);
   els.suggestionBtn?.addEventListener('click', sendSuggestion);
 
