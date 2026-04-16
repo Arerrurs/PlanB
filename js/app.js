@@ -400,7 +400,11 @@ function updateAuthUI() {
   setMessage(els.authMessage, '');
   setMessage(els.settingsMessage, '');
   if (els.userEmail) els.userEmail.textContent = state.profile?.username ? `${state.profile.username} · ${state.user?.email || '—'}` : (state.user?.email || '—');
-  if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
+  if (els.adminLink) {
+    const isAdmin = state.profile?.role === 'admin';
+    els.adminLink.style.display = isAdmin ? 'block' : 'none';
+    els.adminLink.classList.toggle('hidden-link', !isAdmin);
+  }
   if (els.settingsEmailStatic) els.settingsEmailStatic.textContent = state.user?.email || '—';
   if (els.settingsEmailInput) els.settingsEmailInput.value = '';
   if (els.settingsUsername) els.settingsUsername.value = state.profile?.username || '';
@@ -415,7 +419,6 @@ async function ensureProfileExists() {
   const payload = {
     id: state.user.id,
     email: state.user.email,
-    username: normalizeUsername(state.profile?.username || state.user?.user_metadata?.username || '' ) || null,
   };
   const { error } = await withTimeout(supabase.from('profiles').upsert(payload, { onConflict: 'id' }), 'ensure profile');
   if (error) throw error;
@@ -1310,6 +1313,24 @@ async function init() {
   const loadedById = quoteFromUrl ? await loadQuoteById(quoteFromUrl) : false;
   if (!loadedById) await loadRandomQuote();
 }
+
+
+window.addEventListener('pageshow', async (event) => {
+  if (!event.persisted) return;
+  try {
+    await restoreSession();
+    if (state.user) {
+      await Promise.allSettled([loadProfile(), loadUserVote(state.currentQuote?.id)]);
+    } else {
+      state.profile = null;
+      state.currentVote = null;
+      updateVoteButtons();
+      updateAuthUI();
+    }
+  } catch (error) {
+    console.warn('pageshow sync failed:', error);
+  }
+});
 
 window.addEventListener('unhandledrejection', (event) => {
   console.warn('Unhandled rejection:', event.reason);
