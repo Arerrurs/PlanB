@@ -10,6 +10,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 const REQUEST_TIMEOUT_MS = 12000;
+const AUTH_TIMEOUT_MS = 22000;
 const QUOTES_CACHE_KEY = 'mudrost-quotes-cache-v3';
 const CURRENT_QUOTE_KEY = 'mudrost-current-quote-v3';
 const QUOTES_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -18,6 +19,7 @@ const LIGHT_ACCENT_KEY = 'mudrost-light-accent';
 const DARK_ACCENT_KEY = 'mudrost-dark-accent';
 const LIKED_FILTER_MODE_KEY = 'mudrost-liked-filter-mode';
 const DISLIKED_FILTER_MODE_KEY = 'mudrost-disliked-filter-mode';
+const TIMER_DISABLED_KEY = 'mudrost-disable-timer';
 const DEFAULT_LIGHT_ACCENT = '#a855f7';
 const DEFAULT_DARK_ACCENT = '#f472b6';
 const AUTO_REFRESH_MS = 60000;
@@ -50,6 +52,7 @@ const els = {
   dislikeBtn: $('dislikeBtn'),
 
   authModal: $('authModal'),
+  registerModal: $('registerModal'),
   accountModal: $('accountModal'),
   settingsModal: $('settingsModal'),
   suggestionModal: $('suggestionModal'),
@@ -58,13 +61,19 @@ const els = {
   statsModal: $('statsModal'),
 
   authForm: $('authForm'),
+  registerForm: $('registerForm'),
   identifier: $('identifier'),
-  username: $('username'),
   password: $('password'),
+  registerEmail: $('registerEmail'),
+  registerUsername: $('registerUsername'),
+  registerPassword: $('registerPassword'),
   signInBtn: $('signInBtn'),
   signUpBtn: $('signUpBtn'),
   signOutBtn: $('signOutBtn'),
+  openRegisterBtn: $('openRegisterBtn'),
+  openLoginBtn: $('openLoginBtn'),
   authMessage: $('authMessage'),
+  registerMessage: $('registerMessage'),
 
   userEmail: $('userEmail'),
   settingsBtn: $('settingsBtn'),
@@ -77,8 +86,10 @@ const els = {
 
   settingsForm: $('settingsForm'),
   settingsEmailStatic: $('settingsEmailStatic'),
+  settingsEmailInput: $('settingsEmailInput'),
   settingsUsername: $('settingsUsername'),
   settingsPassword: $('settingsPassword'),
+  disableTimerInput: $('disableTimerInput'),
   lightAccentInput: $('lightAccentInput'),
   darkAccentInput: $('darkAccentInput'),
   saveSettingsBtn: $('saveSettingsBtn'),
@@ -129,6 +140,18 @@ function normalizeError(error) {
   return error?.message || 'Что-то пошло не так.';
 }
 
+
+function isTimerDisabled() {
+  const local = localStorage.getItem(TIMER_DISABLED_KEY);
+  if (local === 'true' || local === 'false') return local === 'true';
+  return !!state.profile?.disable_timer;
+}
+
+function setTimerDisabled(value) {
+  localStorage.setItem(TIMER_DISABLED_KEY, value ? 'true' : 'false');
+  if (state.profile) state.profile.disable_timer = !!value;
+}
+
 function escapeHtml(str) {
   return String(str ?? '')
     .replaceAll('&', '&amp;')
@@ -162,6 +185,12 @@ function resetAutoRefreshDeadline() {
 
 function updateMinuteTimer() {
   if (!els.minuteTimer) return;
+  if (isTimerDisabled()) {
+    els.minuteTimer.textContent = 'таймер выкл';
+    els.minuteTimer.classList.add('is-off');
+    return;
+  }
+  els.minuteTimer.classList.remove('is-off');
   const remaining = Math.max(0, state.autoRefreshAt - Date.now());
   const totalSeconds = Math.ceil(remaining / 1000);
   const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
@@ -173,6 +202,7 @@ function startAutoRefreshTicker() {
   updateMinuteTimer();
   window.setInterval(async () => {
     updateMinuteTimer();
+    if (isTimerDisabled()) return;
     if (Date.now() < state.autoRefreshAt || state.autoRefreshBusy) return;
     state.autoRefreshBusy = true;
     try {
@@ -372,8 +402,11 @@ function updateAuthUI() {
   if (els.userEmail) els.userEmail.textContent = state.profile?.username ? `${state.profile.username} · ${state.user?.email || '—'}` : (state.user?.email || '—');
   if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
   if (els.settingsEmailStatic) els.settingsEmailStatic.textContent = state.user?.email || '—';
+  if (els.settingsEmailInput) els.settingsEmailInput.value = '';
   if (els.settingsUsername) els.settingsUsername.value = state.profile?.username || '';
+  if (els.disableTimerInput) els.disableTimerInput.checked = isTimerDisabled();
   syncThemeInputs();
+  updateMinuteTimer();
   syncFilterControls();
 }
 
@@ -396,7 +429,7 @@ async function loadProfile() {
   }
 
   const { data, error } = await withTimeout(
-    supabase.from('profiles').select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent').eq('id', state.user.id).maybeSingle(),
+    supabase.from('profiles').select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent,disable_timer').eq('id', state.user.id).maybeSingle(),
     'load profile'
   );
   if (error) throw error;
@@ -404,6 +437,7 @@ async function loadProfile() {
 
   if (state.profile?.light_accent) localStorage.setItem(LIGHT_ACCENT_KEY, state.profile.light_accent);
   if (state.profile?.dark_accent) localStorage.setItem(DARK_ACCENT_KEY, state.profile.dark_accent);
+  if (typeof state.profile?.disable_timer === 'boolean') localStorage.setItem(TIMER_DISABLED_KEY, state.profile.disable_timer ? 'true' : 'false');
   setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
   updateAuthUI();
 }
@@ -705,62 +739,76 @@ async function signIn() {
   if (!identifier || !password) return setMessage(els.authMessage, 'Заполните поле входа и пароль.', 'error');
 
   els.signInBtn.disabled = true;
-  els.signUpBtn.disabled = true;
   setMessage(els.authMessage, 'Пробуем войти...');
 
   try {
     const email = await resolveLoginEmail(identifier);
     if (!email) throw new Error('invalid login credentials');
-    const { data, error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }), 'sign in');
+    const { data, error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }), 'sign in', AUTH_TIMEOUT_MS);
     if (error) throw error;
     state.user = data.user || data.session?.user || null;
     closeModal(els.authModal);
+    els.authForm?.reset();
     await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
     await loadRandomQuote();
     setMessage(els.globalMessage, 'Вход выполнен.', 'success');
     setMessage(els.authMessage, '');
-    if (els.password) els.password.value = '';
   } catch (error) {
     setMessage(els.authMessage, normalizeError(error), 'error');
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.user) {
+        state.user = data.session.user;
+        closeModal(els.authModal);
+        els.authForm?.reset();
+        await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
+        await loadRandomQuote();
+        setMessage(els.globalMessage, 'Вход выполнен.', 'success');
+      }
+    } catch {}
   } finally {
     els.signInBtn.disabled = false;
-    els.signUpBtn.disabled = false;
   }
 }
 
 async function signUp() {
-  const email = els.identifier?.value.trim().toLowerCase();
-  const username = normalizeUsername(els.username?.value);
-  const password = els.password?.value || '';
-  if (!email || !password || !username) return setMessage(els.authMessage, 'Для регистрации нужны почта, логин и пароль.', 'error');
-  if (!email.includes('@')) return setMessage(els.authMessage, 'Для регистрации нужна корректная почта.', 'error');
-  if (!isValidUsername(username)) return setMessage(els.authMessage, 'Логин: 3–24 символа, латиница, цифры, точка, дефис или _.', 'error');
+  const email = els.registerEmail?.value.trim().toLowerCase();
+  const username = normalizeUsername(els.registerUsername?.value);
+  const password = els.registerPassword?.value || '';
+  if (!email || !password || !username) return setMessage(els.registerMessage, 'Для регистрации нужны почта, логин и пароль.', 'error');
+  if (!email.includes('@')) return setMessage(els.registerMessage, 'Для регистрации нужна корректная почта.', 'error');
+  if (!isValidUsername(username)) return setMessage(els.registerMessage, 'Логин: 3–24 символа, латиница, цифры, точка, дефис или _.', 'error');
 
-  els.signInBtn.disabled = true;
   els.signUpBtn.disabled = true;
-  setMessage(els.authMessage, 'Создаём аккаунт...');
+  setMessage(els.registerMessage, 'Создаём аккаунт...');
 
   try {
     const { data, error } = await withTimeout(
       supabase.auth.signUp({ email, password, options: { data: { username } } }),
-      'sign up'
+      'sign up',
+      AUTH_TIMEOUT_MS
     );
     if (error) throw error;
     state.user = data.user || data.session?.user || null;
 
     if (state.user) {
-      closeModal(els.authModal);
-      els.authForm?.reset();
+      closeModal(els.registerModal);
+      els.registerForm?.reset();
       setMessage(els.globalMessage, 'Аккаунт создан.', 'success');
       await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
       await loadRandomQuote();
     } else {
-      setMessage(els.authMessage, 'Аккаунт создан. После подтверждения можно войти по почте или логину.', 'info');
+      setMessage(els.registerMessage, 'Аккаунт создан. Если подтверждение почты включено, завершите его в письме.', 'info');
     }
   } catch (error) {
-    setMessage(els.authMessage, normalizeError(error), 'error');
+    setMessage(els.registerMessage, normalizeError(error), 'error');
+    try {
+      const resolved = await resolveLoginEmail(email);
+      if (resolved) {
+        setMessage(els.registerMessage, 'Аккаунт, возможно, уже создан. Попробуйте войти.', 'info');
+      }
+    } catch {}
   } finally {
-    els.signInBtn.disabled = false;
     els.signUpBtn.disabled = false;
   }
 }
@@ -975,17 +1023,15 @@ async function saveSettings() {
   if (!state.user) return;
   const nextPassword = els.settingsPassword?.value.trim();
   const nextUsername = normalizeUsername(els.settingsUsername?.value);
+  const nextEmail = els.settingsEmailInput?.value.trim().toLowerCase();
+  const disableTimer = !!els.disableTimerInput?.checked;
   const lightAccent = els.lightAccentInput?.value || DEFAULT_LIGHT_ACCENT;
   const darkAccent = els.darkAccentInput?.value || DEFAULT_DARK_ACCENT;
-
-  if (!nextPassword && !nextUsername && !lightAccent && !darkAccent) {
-    setMessage(els.settingsMessage, 'Нет изменений для сохранения.', 'info');
-    return;
-  }
 
   els.saveSettingsBtn.disabled = true;
   if (nextUsername && !isValidUsername(nextUsername)) {
     setMessage(els.settingsMessage, 'Логин: 3–24 символа, латиница, цифры, точка, дефис или _.', 'error');
+    els.saveSettingsBtn.disabled = false;
     return;
   }
 
@@ -993,19 +1039,26 @@ async function saveSettings() {
 
   try {
     if (nextPassword) {
-      const { data, error } = await withTimeout(supabase.auth.updateUser({ password: nextPassword }), 'update auth');
+      const { data, error } = await withTimeout(supabase.auth.updateUser({ password: nextPassword }), 'update password', AUTH_TIMEOUT_MS);
       if (error) throw error;
       if (data?.user) state.user = data.user;
     }
 
+    if (nextEmail && nextEmail !== (state.user?.email || '').toLowerCase()) {
+      const { error: emailError } = await withTimeout(supabase.auth.updateUser({ email: nextEmail }), 'update email', AUTH_TIMEOUT_MS);
+      if (emailError) throw emailError;
+    }
+
     localStorage.setItem(LIGHT_ACCENT_KEY, lightAccent);
     localStorage.setItem(DARK_ACCENT_KEY, darkAccent);
+    setTimerDisabled(disableTimer);
 
     const profileUpdate = {
       email: state.user?.email || state.profile?.email || null,
       username: nextUsername || state.profile?.username || null,
       light_accent: lightAccent,
       dark_accent: darkAccent,
+      disable_timer: disableTimer,
     };
 
     const { error: profileError } = await withTimeout(
@@ -1016,8 +1069,13 @@ async function saveSettings() {
 
     await loadProfile();
     setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
-    setMessage(els.settingsMessage, 'Настройки сохранены.', 'success');
+    updateMinuteTimer();
+    const emailNotice = nextEmail && nextEmail !== (state.user?.email || '').toLowerCase()
+      ? ' Письмо для подтверждения новой почты уже отправлено.'
+      : '';
+    setMessage(els.settingsMessage, `Настройки сохранены.${emailNotice}`, 'success');
     if (els.settingsPassword) els.settingsPassword.value = '';
+    if (els.settingsEmailInput) els.settingsEmailInput.value = '';
   } catch (error) {
     setMessage(els.settingsMessage, normalizeError(error), 'error');
   } finally {
@@ -1139,6 +1197,18 @@ function bindEvents() {
     }
   });
 
+  els.openRegisterBtn?.addEventListener('click', () => {
+    closeModal(els.authModal);
+    setMessage(els.authMessage, '');
+    openModal(els.registerModal);
+  });
+
+  els.openLoginBtn?.addEventListener('click', () => {
+    closeModal(els.registerModal);
+    setMessage(els.registerMessage, '');
+    openModal(els.authModal);
+  });
+
   els.settingsBtn?.addEventListener('click', () => {
     updateAuthUI();
     openModal(els.settingsModal);
@@ -1185,6 +1255,10 @@ function bindEvents() {
     event.preventDefault();
     signIn();
   });
+  els.registerForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    signUp();
+  });
   els.settingsForm?.addEventListener('submit', (event) => event.preventDefault());
   els.suggestionForm?.addEventListener('submit', (event) => event.preventDefault());
 
@@ -1210,6 +1284,7 @@ async function init() {
   bindEvents();
   startAutoRefreshTicker();
   restoreCachedQuoteToUI();
+  updateMinuteTimer();
   await restoreSession();
   if (state.user) {
     await Promise.allSettled([ensureProfileExists(), loadProfile()]);

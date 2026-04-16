@@ -65,9 +65,9 @@
 
   <div id="authModal" class="modal" hidden>
     <div class="modal-backdrop" data-close="authModal"></div>
-    <div class="modal-dialog">
+    <div class="modal-dialog slim">
       <div class="modal-header">
-        <h2>Вход и регистрация</h2>
+        <h2>Вход</h2>
         <button class="icon-btn" type="button" data-close="authModal" aria-label="Закрыть">
           <span class="material-symbols-outlined">close</span>
         </button>
@@ -79,24 +79,53 @@
             <input id="identifier" type="text" autocomplete="username" placeholder="mail@example.com или login" />
           </label>
           <label class="field">
-            <span>Логин <small>(только для регистрации)</small></span>
-            <input id="username" type="text" autocomplete="username" placeholder="например, dark_reader" />
-          </label>
-          <label class="field">
             <span>Пароль</span>
             <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
           </label>
-          <div class="row-actions">
+          <div class="row-actions single">
             <button id="signInBtn" class="text-btn primary" type="button">Войти</button>
-            <button id="signUpBtn" class="text-btn" type="button">Регистрация</button>
           </div>
+          <button id="openRegisterBtn" class="text-btn ghost text-btn--link" type="button">Нет аккаунта? Зарегистрироваться</button>
           <div id="authMessage" class="message" aria-live="polite"></div>
         </form>
       </div>
     </div>
   </div>
 
-  <div id="accountModal" class="modal" hidden>
+  <div id="registerModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="registerModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Регистрация</h2>
+        <button class="icon-btn" type="button" data-close="registerModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="registerForm" class="stack-form">
+          <label class="field">
+            <span>Почта</span>
+            <input id="registerEmail" type="email" autocomplete="email" placeholder="mail@example.com" />
+          </label>
+          <label class="field">
+            <span>Логин</span>
+            <input id="registerUsername" type="text" autocomplete="username" placeholder="например, dark_reader" />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input id="registerPassword" type="password" autocomplete="new-password" placeholder="••••••••" />
+          </label>
+          <div class="row-actions single">
+            <button id="signUpBtn" class="text-btn primary" type="button">Создать аккаунт</button>
+          </div>
+          <button id="openLoginBtn" class="text-btn ghost text-btn--link" type="button">Уже есть аккаунт? Войти</button>
+          <div id="registerMessage" class="message" aria-live="polite"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+<div id="accountModal" class="modal" hidden>
     <div class="modal-backdrop" data-close="accountModal"></div>
     <div class="modal-dialog slim">
       <div class="modal-header">
@@ -141,6 +170,10 @@
               Текущая почта: <strong id="settingsEmailStatic">—</strong>
             </div>
             <label class="field">
+              <span>Новая почта</span>
+              <input id="settingsEmailInput" type="email" autocomplete="email" placeholder="newmail@example.com" />
+            </label>
+            <label class="field">
               <span>Логин для входа</span>
               <input id="settingsUsername" type="text" autocomplete="username" placeholder="например, dark_reader" />
             </label>
@@ -148,11 +181,19 @@
               Логин можно использовать для входа вместо почты. Для текущих аккаунтов его можно задать здесь.
             </div>
             <div class="settings-note muted-note">
-              В этой версии почта не меняется без письма-подтверждения. Для статического сайта на GitHub Pages безопасно оставлен только прямой сброс пароля.
+              Почта меняется через письмо-подтверждение от Supabase. После подтверждения войти можно будет и по новой почте, и по логину.
             </div>
             <label class="field">
               <span>Новый пароль</span>
               <input id="settingsPassword" type="password" autocomplete="new-password" placeholder="Оставьте пустым, если менять не нужно" />
+            </label>
+          </section>
+
+          <section class="settings-section">
+            <h3>Автообновление цитат</h3>
+            <label class="setting-row">
+              <span>Не использовать таймер</span>
+              <input id="disableTimerInput" class="switch-input" type="checkbox" />
             </label>
           </section>
 

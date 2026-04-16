@@ -10,7 +10,8 @@ create table if not exists public.profiles (
   hide_liked boolean not null default false,
   show_only_liked boolean not null default false,
   light_accent text not null default '#a855f7',
-  dark_accent text not null default '#f472b6'
+  dark_accent text not null default '#f472b6',
+  disable_timer boolean not null default false
 );
 
 create table if not exists public.quotes (
