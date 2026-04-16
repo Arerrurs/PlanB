@@ -190,14 +190,6 @@
           </section>
 
           <section class="settings-section">
-            <h3>Автообновление цитат</h3>
-            <label class="setting-row">
-              <span>Не использовать таймер</span>
-              <input id="disableTimerInput" class="switch-input" type="checkbox" />
-            </label>
-          </section>
-
-          <section class="settings-section">
             <h3>Акцентные цвета</h3>
             <div class="theme-setting-grid">
               <label class="field inline-field">
@@ -215,6 +207,14 @@
             <button id="saveSettingsBtn" class="text-btn primary" type="button">Сохранить</button>
             <button id="resetAccentBtn" class="text-btn" type="button">Сбросить цвета</button>
           </div>
+
+          <section class="settings-section settings-section--compact">
+            <label class="setting-row">
+              <span>Не использовать таймер</span>
+              <input id="disableTimerInput" type="checkbox" />
+            </label>
+          </section>
+
           <div id="settingsMessage" class="message" aria-live="polite"></div>
         </form>
       </div>

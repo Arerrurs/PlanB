@@ -20,6 +20,7 @@ const DARK_ACCENT_KEY = 'mudrost-dark-accent';
 const LIKED_FILTER_MODE_KEY = 'mudrost-liked-filter-mode';
 const DISLIKED_FILTER_MODE_KEY = 'mudrost-disliked-filter-mode';
 const TIMER_DISABLED_KEY = 'mudrost-disable-timer';
+const USERNAME_CACHE_KEY = 'mudrost-profile-username';
 const DEFAULT_LIGHT_ACCENT = '#a855f7';
 const DEFAULT_DARK_ACCENT = '#f472b6';
 const AUTO_REFRESH_MS = 60000;
@@ -398,7 +399,7 @@ function restoreCachedQuoteToUI() {
 function clearStoredSession() {
   try {
     Object.keys(localStorage).forEach((key) => {
-      if (key.includes('supabase') || key === CURRENT_QUOTE_KEY) localStorage.removeItem(key);
+      if (key.includes('supabase') || key === CURRENT_QUOTE_KEY || key === USERNAME_CACHE_KEY) localStorage.removeItem(key);
     });
     Object.keys(sessionStorage).forEach((key) => {
       if (key.includes('supabase') || key === QUOTES_CACHE_KEY) sessionStorage.removeItem(key);
@@ -421,15 +422,32 @@ function updateVoteButtons() {
   els.dislikeBtn?.classList.toggle('dislike', vote === 'dislike');
 }
 
+function getCachedUsername() {
+  try { return (localStorage.getItem(USERNAME_CACHE_KEY) || '').trim(); } catch { return ''; }
+}
+
+function cacheUsername(username) {
+  try {
+    const clean = normalizeUsername(username || '');
+    if (clean) localStorage.setItem(USERNAME_CACHE_KEY, clean);
+    else localStorage.removeItem(USERNAME_CACHE_KEY);
+  } catch {}
+}
+
+function getDisplayUsername() {
+  return state.profile?.username || getCachedUsername() || normalizeUsername(state.user?.user_metadata?.username || '');
+}
+
 function updateAuthUI() {
   updateAccountButton();
   setMessage(els.authMessage, '');
   setMessage(els.settingsMessage, '');
-  if (els.userEmail) els.userEmail.textContent = state.profile?.username ? `${state.profile.username} · ${state.user?.email || '—'}` : (state.user?.email || '—');
+  const displayUsername = getDisplayUsername();
+  if (els.userEmail) els.userEmail.textContent = displayUsername ? `${displayUsername} · ${state.user?.email || '—'}` : (state.user?.email || '—');
   if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
   if (els.settingsEmailStatic) els.settingsEmailStatic.textContent = state.user?.email || '—';
   if (els.settingsEmailInput) els.settingsEmailInput.value = '';
-  if (els.settingsUsername) els.settingsUsername.value = state.profile?.username || '';
+  if (els.settingsUsername) els.settingsUsername.value = getDisplayUsername() || '';
   if (els.disableTimerInput) els.disableTimerInput.checked = isTimerDisabled();
   syncThemeInputs();
   updateMinuteTimer();
@@ -444,7 +462,7 @@ async function ensureProfileExists() {
     'ensure profile lookup'
   );
   if (selectError) throw selectError;
-  if (existing?.id) return;
+  if (existing?.id) { cacheUsername(state.user?.user_metadata?.username || ''); return; }
 
   const payload = {
     id: state.user.id,
@@ -453,6 +471,7 @@ async function ensureProfileExists() {
   };
   const { error } = await withTimeout(supabase.from('profiles').insert(payload), 'ensure profile insert');
   if (error) throw error;
+  cacheUsername(payload.username);
 }
 
 async function loadProfile() {
@@ -469,6 +488,7 @@ async function loadProfile() {
   if (error) throw error;
   state.profile = data || null;
 
+  cacheUsername(state.profile?.username || '');
   if (state.profile?.light_accent) localStorage.setItem(LIGHT_ACCENT_KEY, state.profile.light_accent);
   if (state.profile?.dark_accent) localStorage.setItem(DARK_ACCENT_KEY, state.profile.dark_accent);
   if (typeof state.profile?.disable_timer === 'boolean') localStorage.setItem(TIMER_DISABLED_KEY, state.profile.disable_timer ? 'true' : 'false');
@@ -772,10 +792,11 @@ async function persistUsername(username) {
   const clean = normalizeUsername(username);
   if (!clean) return;
   const { error } = await withTimeout(
-    supabase.from('profiles').update({ username: clean }).eq('id', state.user.id),
+    supabase.from('profiles').update({ username: clean || null }).eq('id', state.user.id),
     'save username'
   );
   if (error) throw error;
+  cacheUsername(clean);
 }
 
 async function signIn() {
@@ -838,6 +859,7 @@ async function signUp() {
 
     if (state.user) {
       await ensureProfileExists();
+      cacheUsername(username);
       await persistUsername(username);
       closeModal(els.registerModal);
       els.registerForm?.reset();

@@ -727,3 +727,5 @@ a { color: inherit; text-decoration: none; }
   opacity: 0.72;
   letter-spacing: 0.01em;
 }
+
+.settings-section--compact { padding-top: 0; margin-top: -4px; }
