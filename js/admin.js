@@ -29,6 +29,7 @@ const els = {
   quotesList: $('quotesList'),
   quoteSortSelect: $('quoteSortSelect'),
   suggestionsList: $('suggestionsList'),
+  quoteSearchInput: $('quoteSearchInput'),
   editQuoteModal: $('editQuoteModal'),
   editQuoteForm: $('editQuoteForm'),
   editQuoteId: $('editQuoteId'),
@@ -43,6 +44,7 @@ const els = {
 
 let adminUser = null;
 let quoteStatsMap = new Map();
+let allQuotes = [];
 
 
 const THEME_KEY = 'mudrost-theme';
@@ -84,6 +86,11 @@ function escapeHtml(str) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
+}
+
+
+function normalizeSearch(str) {
+  return String(str || '').toLowerCase().replace(/ё/g, 'е').trim();
 }
 
 function applyTheme(theme) {
@@ -311,12 +318,23 @@ async function loadQuotes() {
     return;
   }
 
-  if (!data?.length) {
+  allQuotes = data || [];
+  if (!allQuotes.length) {
     els.quotesList.innerHTML = '<div class="admin-empty">Пока пусто.</div>';
     return;
   }
 
-  const sortedQuotes = sortQuotes(data);
+  const search = normalizeSearch(els.quoteSearchInput?.value || '');
+  const filtered = search
+    ? allQuotes.filter((item) => normalizeSearch(item.text).includes(search))
+    : allQuotes;
+
+  if (!filtered.length) {
+    els.quotesList.innerHTML = '<div class="admin-empty">Ничего не найдено.</div>';
+    return;
+  }
+
+  const sortedQuotes = sortQuotes(filtered);
 
   els.quotesList.innerHTML = sortedQuotes.map((item) => {
     const stats = quoteStatsMap.get(item.id) || { likes: 0, dislikes: 0 };
@@ -356,6 +374,36 @@ async function loadQuotes() {
 }
 
 async function loadSuggestions() {
+  const { data, error } = await supabase.rpc('admin_list_suggestions');
+
+  if (error) {
+    els.suggestionsList.innerHTML = '<div class="admin-empty">Не удалось загрузить предложения.</div>';
+    return;
+  }
+
+  if (!data?.length) {
+    els.suggestionsList.innerHTML = '<div class="admin-empty">Пока нет предложений.</div>';
+    return;
+  }
+
+  els.suggestionsList.innerHTML = data.map((item) => `
+    <article class="admin-item">
+      <div class="admin-item__text">${escapeHtml(item.text)}</div>
+      <div class="admin-item__meta">
+        <span class="${badgeClass(item.status)}">${escapeHtml(item.status)}</span>
+        <span>${new Date(item.created_at).toLocaleString('ru-RU')}</span>
+        <span>предложил: ${escapeHtml(item.email || 'гость')}</span>
+      </div>
+      <div class="admin-item__actions">
+        <button class="text-btn primary" type="button" data-action="approve-suggestion" data-id="${item.id}">Принять</button>
+        <button class="text-btn" type="button" data-action="reject-suggestion" data-id="${item.id}">Отклонить</button>
+        <button class="text-btn danger" type="button" data-action="delete-suggestion" data-id="${item.id}">Удалить</button>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function refreshAll()() {
   const { data, error } = await supabase
     .from('quote_suggestions')
     .select('id,text,status,created_at,user_id')
@@ -560,6 +608,10 @@ async function init() {
   els.suggestionsList.addEventListener('click', handleAdminAction);
   els.saveQuoteBtn.addEventListener('click', saveEditedQuote);
   els.quoteSortSelect?.addEventListener('change', loadQuotes);
+  els.quoteSearchInput?.addEventListener('input', () => {
+    window.clearTimeout(els.quoteSearchInput._timer);
+    els.quoteSearchInput._timer = window.setTimeout(() => loadQuotes(), 120);
+  });
   els.editQuoteForm.addEventListener('submit', (e) => e.preventDefault());
 
   const ok = await checkAccess();
@@ -574,7 +626,7 @@ async function init() {
     if (panel) panel.classList.add('collapsed');
     if (icon) icon.textContent = 'expand_more';
   });
-  window.setInterval(refreshAll, 15000);
+  window.setInterval(refreshAll, 30000);
 }
 
 document.addEventListener('DOMContentLoaded', init);

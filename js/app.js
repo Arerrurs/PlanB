@@ -9,7 +9,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-const REQUEST_TIMEOUT_MS = 9000;
+const REQUEST_TIMEOUT_MS = 12000;
 const QUOTES_CACHE_KEY = 'mudrost-quotes-cache-v3';
 const CURRENT_QUOTE_KEY = 'mudrost-current-quote-v3';
 const QUOTES_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -20,12 +20,15 @@ const LIKED_FILTER_MODE_KEY = 'mudrost-liked-filter-mode';
 const DISLIKED_FILTER_MODE_KEY = 'mudrost-disliked-filter-mode';
 const DEFAULT_LIGHT_ACCENT = '#a855f7';
 const DEFAULT_DARK_ACCENT = '#f472b6';
+const AUTO_REFRESH_MS = 60000;
 
 const state = {
   user: null,
   profile: null,
   currentQuote: null,
   currentVote: null,
+  autoRefreshAt: Date.now() + AUTO_REFRESH_MS,
+  autoRefreshBusy: false,
   likedIds: null,
   dislikedIds: null,
 };
@@ -55,7 +58,8 @@ const els = {
   statsModal: $('statsModal'),
 
   authForm: $('authForm'),
-  email: $('email'),
+  identifier: $('identifier'),
+  username: $('username'),
   password: $('password'),
   signInBtn: $('signInBtn'),
   signUpBtn: $('signUpBtn'),
@@ -72,7 +76,8 @@ const els = {
   dislikedFilterControl: $('dislikedFilterControl'),
 
   settingsForm: $('settingsForm'),
-  settingsEmail: $('settingsEmail'),
+  settingsEmailStatic: $('settingsEmailStatic'),
+  settingsUsername: $('settingsUsername'),
   settingsPassword: $('settingsPassword'),
   lightAccentInput: $('lightAccentInput'),
   darkAccentInput: $('darkAccentInput'),
@@ -95,6 +100,7 @@ const els = {
   topLikedMeta: $('topLikedMeta'),
   topDislikedText: $('topDislikedText'),
   topDislikedMeta: $('topDislikedMeta'),
+  minuteTimer: $('minuteTimer'),
 };
 
 function withTimeout(promise, label = 'request', ms = REQUEST_TIMEOUT_MS) {
@@ -113,9 +119,10 @@ function setMessage(el, text = '', type = 'info') {
 
 function normalizeError(error) {
   const msg = String(error?.message || error || '').toLowerCase();
-  if (msg.includes('invalid login credentials')) return 'Неверная почта или пароль.';
+  if (msg.includes('invalid login credentials')) return 'Неверные почта, логин или пароль.';
   if (msg.includes('email not confirmed')) return 'Подтверждение почты всё ещё включено в Supabase.';
   if (msg.includes('user already registered')) return 'Пользователь с такой почтой уже зарегистрирован.';
+  if (msg.includes('profiles_username') || msg.includes('duplicate key')) return 'Такой логин уже занят.';
   if (msg.includes('network') || msg.includes('fetch')) return 'Не удалось подключиться к серверу.';
   if (msg.includes('timed out')) return 'Сервер отвечает слишком долго.';
   if (msg.includes('row-level security')) return 'Недостаточно прав для этого действия.';
@@ -129,6 +136,51 @@ function escapeHtml(str) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
+}
+
+function normalizeUsername(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+}
+
+function isValidUsername(value) {
+  return /^[a-z0-9._-]{3,24}$/.test(normalizeUsername(value));
+}
+
+async function resolveLoginEmail(identifier) {
+  const raw = String(identifier || '').trim();
+  if (!raw) return null;
+  if (raw.includes('@')) return raw.toLowerCase();
+  const { data, error } = await withTimeout(supabase.rpc('resolve_login_email', { p_identifier: raw }), 'resolve login');
+  if (error) throw error;
+  return data || null;
+}
+
+function resetAutoRefreshDeadline() {
+  state.autoRefreshAt = Date.now() + AUTO_REFRESH_MS;
+  updateMinuteTimer();
+}
+
+function updateMinuteTimer() {
+  if (!els.minuteTimer) return;
+  const remaining = Math.max(0, state.autoRefreshAt - Date.now());
+  const totalSeconds = Math.ceil(remaining / 1000);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  els.minuteTimer.textContent = `${minutes}:${seconds}`;
+}
+
+function startAutoRefreshTicker() {
+  updateMinuteTimer();
+  window.setInterval(async () => {
+    updateMinuteTimer();
+    if (Date.now() < state.autoRefreshAt || state.autoRefreshBusy) return;
+    state.autoRefreshBusy = true;
+    try {
+      await loadRandomQuote();
+    } finally {
+      state.autoRefreshBusy = false;
+    }
+  }, 1000);
 }
 
 function openModal(el) {
@@ -276,6 +328,7 @@ function showQuote(quote, syncUrl = true) {
   if (els.quoteText) els.quoteText.textContent = quote.text;
   if (els.quoteId) els.quoteId.value = quote.id;
   saveCurrentQuote(quote);
+  resetAutoRefreshDeadline();
   if (syncUrl) updateQuoteUrl(quote.id);
 }
 
@@ -316,9 +369,10 @@ function updateAuthUI() {
   updateAccountButton();
   setMessage(els.authMessage, '');
   setMessage(els.settingsMessage, '');
-  if (els.userEmail) els.userEmail.textContent = state.user?.email || '—';
+  if (els.userEmail) els.userEmail.textContent = state.profile?.username ? `${state.profile.username} · ${state.user?.email || '—'}` : (state.user?.email || '—');
   if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
-  if (els.settingsEmail) els.settingsEmail.value = state.user?.email || '';
+  if (els.settingsEmailStatic) els.settingsEmailStatic.textContent = state.user?.email || '—';
+  if (els.settingsUsername) els.settingsUsername.value = state.profile?.username || '';
   syncThemeInputs();
   syncFilterControls();
 }
@@ -328,6 +382,7 @@ async function ensureProfileExists() {
   const payload = {
     id: state.user.id,
     email: state.user.email,
+    username: normalizeUsername(state.profile?.username || state.user?.user_metadata?.username || '' ) || null,
   };
   const { error } = await withTimeout(supabase.from('profiles').upsert(payload, { onConflict: 'id' }), 'ensure profile');
   if (error) throw error;
@@ -341,7 +396,7 @@ async function loadProfile() {
   }
 
   const { data, error } = await withTimeout(
-    supabase.from('profiles').select('id,email,role,hide_disliked,hide_liked,light_accent,dark_accent').eq('id', state.user.id).maybeSingle(),
+    supabase.from('profiles').select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent').eq('id', state.user.id).maybeSingle(),
     'load profile'
   );
   if (error) throw error;
@@ -603,9 +658,9 @@ async function shareQuoteText() {
 
 ${quoteUrl}`;
 
-  if (navigator.share) {
+  if (navigator.share && isMobileLikeDevice()) {
     try {
-      await navigator.share({ title: 'Мудрость дня', text: textOnly, url: quoteUrl });
+      await navigator.share({ text: textOnly });
       return;
     } catch {}
   }
@@ -625,7 +680,7 @@ async function shareQuoteCard() {
     const file = new File([blob], 'mudrost-day-card.png', { type: 'image/png' });
 
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Мудрость дня' });
+      await navigator.share({ files: [file] });
       return;
     }
 
@@ -645,25 +700,26 @@ async function shareQuoteCard() {
 }
 
 async function signIn() {
-  const email = els.email?.value.trim();
-  const password = els.password?.value || '';
-  if (!email || !password) return setMessage(els.authMessage, 'Заполни почту и пароль.', 'error');
+  const identifier = els.identifier?.value.trim();
+  const password = els.password?.value.trim();
+  if (!identifier || !password) return setMessage(els.authMessage, 'Заполните поле входа и пароль.', 'error');
 
   els.signInBtn.disabled = true;
   els.signUpBtn.disabled = true;
   setMessage(els.authMessage, 'Пробуем войти...');
 
   try {
+    const email = await resolveLoginEmail(identifier);
+    if (!email) throw new Error('invalid login credentials');
     const { data, error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }), 'sign in');
     if (error) throw error;
     state.user = data.user || data.session?.user || null;
     closeModal(els.authModal);
-    els.authForm?.reset();
-    setMessage(els.globalMessage, 'Вход выполнен.', 'success');
-    state.likedIds = null;
-    state.dislikedIds = null;
     await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
     await loadRandomQuote();
+    setMessage(els.globalMessage, 'Вход выполнен.', 'success');
+    setMessage(els.authMessage, '');
+    if (els.password) els.password.value = '';
   } catch (error) {
     setMessage(els.authMessage, normalizeError(error), 'error');
   } finally {
@@ -673,16 +729,22 @@ async function signIn() {
 }
 
 async function signUp() {
-  const email = els.email?.value.trim();
+  const email = els.identifier?.value.trim().toLowerCase();
+  const username = normalizeUsername(els.username?.value);
   const password = els.password?.value || '';
-  if (!email || !password) return setMessage(els.authMessage, 'Заполни почту и пароль.', 'error');
+  if (!email || !password || !username) return setMessage(els.authMessage, 'Для регистрации нужны почта, логин и пароль.', 'error');
+  if (!email.includes('@')) return setMessage(els.authMessage, 'Для регистрации нужна корректная почта.', 'error');
+  if (!isValidUsername(username)) return setMessage(els.authMessage, 'Логин: 3–24 символа, латиница, цифры, точка, дефис или _.', 'error');
 
   els.signInBtn.disabled = true;
   els.signUpBtn.disabled = true;
   setMessage(els.authMessage, 'Создаём аккаунт...');
 
   try {
-    const { data, error } = await withTimeout(supabase.auth.signUp({ email, password }), 'sign up');
+    const { data, error } = await withTimeout(
+      supabase.auth.signUp({ email, password, options: { data: { username } } }),
+      'sign up'
+    );
     if (error) throw error;
     state.user = data.user || data.session?.user || null;
 
@@ -693,7 +755,7 @@ async function signUp() {
       await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
       await loadRandomQuote();
     } else {
-      setMessage(els.authMessage, 'Аккаунт создан, но подтверждение почты всё ещё включено в Supabase.', 'info');
+      setMessage(els.authMessage, 'Аккаунт создан. После подтверждения можно войти по почте или логину.', 'info');
     }
   } catch (error) {
     setMessage(els.authMessage, normalizeError(error), 'error');
@@ -911,26 +973,27 @@ async function sendSuggestion() {
 
 async function saveSettings() {
   if (!state.user) return;
-  const nextEmail = els.settingsEmail?.value.trim();
   const nextPassword = els.settingsPassword?.value.trim();
+  const nextUsername = normalizeUsername(els.settingsUsername?.value);
   const lightAccent = els.lightAccentInput?.value || DEFAULT_LIGHT_ACCENT;
   const darkAccent = els.darkAccentInput?.value || DEFAULT_DARK_ACCENT;
 
-  if (!nextEmail && !nextPassword && !lightAccent && !darkAccent) {
+  if (!nextPassword && !nextUsername && !lightAccent && !darkAccent) {
     setMessage(els.settingsMessage, 'Нет изменений для сохранения.', 'info');
     return;
   }
 
   els.saveSettingsBtn.disabled = true;
+  if (nextUsername && !isValidUsername(nextUsername)) {
+    setMessage(els.settingsMessage, 'Логин: 3–24 символа, латиница, цифры, точка, дефис или _.', 'error');
+    return;
+  }
+
   setMessage(els.settingsMessage, 'Сохраняем...');
 
   try {
-    const updatePayload = {};
-    if (nextEmail && nextEmail !== state.user.email) updatePayload.email = nextEmail;
-    if (nextPassword) updatePayload.password = nextPassword;
-
-    if (Object.keys(updatePayload).length) {
-      const { data, error } = await withTimeout(supabase.auth.updateUser(updatePayload), 'update auth');
+    if (nextPassword) {
+      const { data, error } = await withTimeout(supabase.auth.updateUser({ password: nextPassword }), 'update auth');
       if (error) throw error;
       if (data?.user) state.user = data.user;
     }
@@ -939,7 +1002,8 @@ async function saveSettings() {
     localStorage.setItem(DARK_ACCENT_KEY, darkAccent);
 
     const profileUpdate = {
-      email: state.user?.email || nextEmail || state.profile?.email || null,
+      email: state.user?.email || state.profile?.email || null,
+      username: nextUsername || state.profile?.username || null,
       light_accent: lightAccent,
       dark_accent: darkAccent,
     };
@@ -1144,6 +1208,7 @@ async function init() {
   syncThemeInputs();
   syncFilterControls();
   bindEvents();
+  startAutoRefreshTicker();
   restoreCachedQuoteToUI();
   await restoreSession();
   if (state.user) {

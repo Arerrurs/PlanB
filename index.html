@@ -19,6 +19,7 @@
           <span class="material-symbols-outlined">auto_stories</span>
         </button>
         <div class="topbar-actions">
+          <div id="minuteTimer" class="minute-timer" title="Автообновление цитаты">01:00</div>
           <button id="themeBtn" class="icon-btn" type="button" aria-label="Сменить тему" title="Сменить тему">
             <span class="material-symbols-outlined">contrast</span>
           </button>
@@ -41,7 +42,7 @@
           <button id="copyBtn" class="icon-btn" type="button" aria-label="Скопировать цитату" title="Скопировать">
             <span class="material-symbols-outlined">content_copy</span>
           </button>
-          <button id="shareBtn" class="icon-btn" type="button" aria-label="Поделиться текстом и ссылкой" title="Текст и ссылка">
+          <button id="shareBtn" class="icon-btn" type="button" aria-label="Текст и ссылка" title="Текст и ссылка">
             <span class="material-symbols-outlined">ios_share</span>
           </button>
           <button id="shareCardBtn" class="icon-btn" type="button" aria-label="Поделиться карточкой" title="Карточка">
@@ -66,7 +67,7 @@
     <div class="modal-backdrop" data-close="authModal"></div>
     <div class="modal-dialog">
       <div class="modal-header">
-        <h2>Вход</h2>
+        <h2>Вход и регистрация</h2>
         <button class="icon-btn" type="button" data-close="authModal" aria-label="Закрыть">
           <span class="material-symbols-outlined">close</span>
         </button>
@@ -74,8 +75,12 @@
       <div class="modal-body">
         <form id="authForm" class="stack-form">
           <label class="field">
-            <span>Почта</span>
-            <input id="email" type="email" autocomplete="email" placeholder="mail@example.com" />
+            <span>Почта или логин</span>
+            <input id="identifier" type="text" autocomplete="username" placeholder="mail@example.com или login" />
+          </label>
+          <label class="field">
+            <span>Логин <small>(только для регистрации)</small></span>
+            <input id="username" type="text" autocomplete="username" placeholder="например, dark_reader" />
           </label>
           <label class="field">
             <span>Пароль</span>
@@ -132,13 +137,22 @@
         <form id="settingsForm" class="stack-form">
           <section class="settings-section">
             <h3>Данные аккаунта</h3>
+            <div class="settings-note">
+              Текущая почта: <strong id="settingsEmailStatic">—</strong>
+            </div>
             <label class="field">
-              <span>Новая почта</span>
-              <input id="settingsEmail" type="email" autocomplete="email" placeholder="Оставь пустым, если не нужно менять" />
+              <span>Логин для входа</span>
+              <input id="settingsUsername" type="text" autocomplete="username" placeholder="например, dark_reader" />
             </label>
+            <div class="settings-note muted-note">
+              Логин можно использовать для входа вместо почты. Для текущих аккаунтов его можно задать здесь.
+            </div>
+            <div class="settings-note muted-note">
+              В этой версии почта не меняется без письма-подтверждения. Для статического сайта на GitHub Pages безопасно оставлен только прямой сброс пароля.
+            </div>
             <label class="field">
               <span>Новый пароль</span>
-              <input id="settingsPassword" type="password" autocomplete="new-password" placeholder="Оставь пустым, если не нужно менять" />
+              <input id="settingsPassword" type="password" autocomplete="new-password" placeholder="Оставьте пустым, если менять не нужно" />
             </label>
           </section>
 
@@ -203,8 +217,8 @@
           <span>Фильтр для ленты</span>
           <div id="likedFilterControl" class="segmented-control" role="group" aria-label="Фильтр лайкнутых цитат">
             <button class="segment-btn" type="button" data-liked-mode="all">Все</button>
-            <button class="segment-btn" type="button" data-liked-mode="only">Только лайкнутые</button>
-            <button class="segment-btn" type="button" data-liked-mode="exclude">Скрыть лайкнутые</button>
+            <button class="segment-btn" type="button" data-liked-mode="only">Показывать только лайкнутые</button>
+            <button class="segment-btn" type="button" data-liked-mode="exclude">Не показывать лайкнутые</button>
           </div>
         </div>
         <div id="favoritesMessage" class="message" aria-live="polite"></div>
@@ -227,8 +241,8 @@
           <span>Фильтр для ленты</span>
           <div id="dislikedFilterControl" class="segmented-control" role="group" aria-label="Фильтр дизлайкнутых цитат">
             <button class="segment-btn" type="button" data-disliked-mode="all">Все</button>
-            <button class="segment-btn" type="button" data-disliked-mode="only">Только дизлайкнутые</button>
-            <button class="segment-btn" type="button" data-disliked-mode="exclude">Скрыть дизлайкнутые</button>
+            <button class="segment-btn" type="button" data-disliked-mode="only">Показывать только дизлайкнутые</button>
+            <button class="segment-btn" type="button" data-disliked-mode="exclude">Не показывать дизлайкнутые</button>
           </div>
         </div>
         <div id="dislikedMessage" class="message" aria-live="polite"></div>

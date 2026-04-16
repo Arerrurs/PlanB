@@ -3,6 +3,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
+  username text unique,
   role text not null default 'user' check (role in ('user', 'admin')),
   created_at timestamptz not null default now(),
   hide_disliked boolean not null default false,
@@ -193,3 +194,47 @@ end;
 $$;
 
 grant execute on function public.admin_quote_vote_details(uuid, text) to authenticated;
+
+
+create or replace function public.admin_list_suggestions()
+returns table(id uuid, text text, status text, created_at timestamptz, user_id uuid, email text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin(auth.uid()) then
+    raise exception 'not allowed';
+  end if;
+
+  return query
+  select qs.id, qs.text, qs.status, qs.created_at, qs.user_id, p.email
+  from public.quote_suggestions qs
+  left join public.profiles p on p.id = qs.user_id
+  order by qs.created_at desc;
+end;
+$$;
+
+grant execute on function public.admin_list_suggestions() to authenticated;
+
+create unique index if not exists profiles_username_unique_idx on public.profiles (lower(username)) where username is not null;
+
+create or replace function public.resolve_login_email(p_identifier text)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when strpos(trim(p_identifier), '@') > 0 then lower(trim(p_identifier))
+    else (
+      select email
+      from public.profiles
+      where lower(username) = lower(trim(p_identifier))
+      limit 1
+    )
+  end;
+$$;
+
+grant execute on function public.resolve_login_email(text) to anon, authenticated;
