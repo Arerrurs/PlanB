@@ -3,70 +3,182 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Админка — Мудрость дня</title>
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <title>Мудрость дня — Админка</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="page-shell">
-    <header class="site-header">
-      <h1>Админка</h1>
-      <div class="header-actions">
-        <button class="icon-btn" id="themeBtn" type="button">◐</button>
-        <a class="pill-btn secondary" href="./index.html">На главную</a>
-      </div>
-    </header>
+  <main class="admin-page">
+    <section class="admin-shell">
+      <header class="admin-header">
+        <div>
+          <h1>Админка</h1>
+          <p id="adminStatus" class="admin-subtitle">Проверяем доступ...</p>
+        </div>
+        <div class="topbar-actions">
+          <a class="icon-btn" href="./index.html" aria-label="На главную" title="На главную">
+            <span class="material-symbols-outlined">home</span>
+          </a>
+          <button id="adminThemeBtn" class="icon-btn" type="button" aria-label="Сменить тему" title="Сменить тему">
+            <span class="material-symbols-outlined">contrast</span>
+          </button>
+          <button id="refreshAdminBtn" class="icon-btn" type="button" aria-label="Обновить всё" title="Обновить всё">
+            <span class="material-symbols-outlined">refresh</span>
+          </button>
+        </div>
+      </header>
 
-    <div class="status-line" id="adminStatus"></div>
+      <section id="accessDenied" class="panel hidden">
+        <p>У тебя нет доступа к этой странице.</p>
+      </section>
 
-    <section class="quote-card" id="adminWrap">
-      <div class="field">
-        <span>Поиск по цитатам</span>
-        <input class="search-input" id="searchQuotes" type="text" placeholder="Введите слово..." />
-      </div>
-      <div class="field">
-        <span>Сортировка</span>
-        <select class="search-input" id="sortSelect">
-          <option value="new">Сначала новые</option>
-          <option value="likes">Сначала самые лайкнутые</option>
-          <option value="dislikes">Сначала самые дизлайкнутые</option>
-        </select>
-      </div>
-      <div class="field">
-        <span>Новая цитата</span>
-        <textarea id="newQuoteText" rows="4"></textarea>
-      </div>
-      <div class="modal-actions">
-        <button class="pill-btn" id="addQuoteBtn" type="button">Добавить</button>
-      </div>
-      <div class="status-line" id="addQuoteStatus"></div>
+      <div id="adminContent" class="hidden">
+        <section class="panel collapsible-panel" data-panel="stats">
+          <div class="panel-head">
+            <h2>Статистика</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="stats" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
+          </div>
+          <div class="panel-content" data-panel-content="stats">
+            <section class="stats-grid">
+              <article class="stat-card">
+                <span>Цитат</span>
+                <strong id="statQuotes">0</strong>
+              </article>
+              <article class="stat-card">
+                <span>На модерации</span>
+                <strong id="statSuggestions">0</strong>
+              </article>
+              <article class="stat-card">
+                <span>Лайков</span>
+                <strong id="statLikes">0</strong>
+              </article>
+              <article class="stat-card">
+                <span>Дизлайков</span>
+                <strong id="statDislikes">0</strong>
+              </article>
+            </section>
+          </div>
+        </section>
 
-      <details open>
-        <summary><strong>Цитаты</strong></summary>
-        <div id="quotesList" class="quote-list"></div>
-      </details>
+        <section class="panel collapsible-panel" data-panel="addQuote">
+          <div class="panel-head">
+            <h2>Добавить цитату</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="addQuote" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
+          </div>
+          <div class="panel-content" data-panel-content="addQuote">
+            <div class="stack-form">
+              <label class="field">
+                <textarea id="newQuoteText" rows="4" placeholder="Текст цитаты..."></textarea>
+              </label>
+              <div class="row-actions single">
+                <button id="addQuoteBtn" class="text-btn primary" type="button">Добавить</button>
+              </div>
+              <div id="adminMessage" class="message"></div>
+            </div>
+          </div>
+        </section>
 
-      <details>
-        <summary><strong>Предложенные цитаты</strong></summary>
-        <div id="suggestionsList" class="quote-list"></div>
-      </details>
+        <section class="panel collapsible-panel" data-panel="users">
+          <div class="panel-head">
+            <h2>Пользователи</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="users" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
+          </div>
+          <div class="panel-content" data-panel-content="users">
+            <div id="usersSummary" class="admin-subtitle panel-subtitle">Всего: 0</div>
+            <div id="usersList" class="admin-list compact-list"></div>
+          </div>
+        </section>
 
-      <details>
-        <summary><strong>Пользователи</strong></summary>
-        <div id="usersList" class="quote-list"></div>
-      </details>
+        <section class="panel collapsible-panel" data-panel="quotes">
+          <div class="panel-head">
+            <h2>Цитаты</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="quotes" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
+          </div>
+          <div class="panel-content" data-panel-content="quotes">
+            <div class="toolbar-row toolbar-row--wrap">
+              <label class="select-wrap">
+                <span>Сортировка</span>
+                <select id="quoteSortSelect" class="select-control">
+                  <option value="newest">Сначала новые</option>
+                  <option value="likes_desc">Самые лайкнутые</option>
+                  <option value="dislikes_desc">Самые дизлайкнутые</option>
+                </select>
+              </label>
+              <label class="field search-field">
+                <span>Поиск</span>
+                <input id="quoteSearchInput" type="search" placeholder="Найти по слову или фразе" />
+              </label>
+            </div>
+            <div id="quotesList" class="admin-list"></div>
+          </div>
+        </section>
+
+        <section class="panel collapsible-panel" data-panel="suggestions">
+          <div class="panel-head">
+            <h2>Предложенные цитаты</h2>
+            <button class="icon-btn panel-toggle" type="button" data-panel-toggle="suggestions" aria-label="Свернуть раздел">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
+          </div>
+          <div class="panel-content" data-panel-content="suggestions">
+            <div id="suggestionsList" class="admin-list"></div>
+          </div>
+        </section>
+      </div>
     </section>
-  </div>
+  </main>
 
-  <div class="modal hidden" id="voteModal">
-    <div class="modal-backdrop" data-close="voteModal"></div>
+  <div id="editQuoteModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="editQuoteModal"></div>
     <div class="modal-dialog">
       <div class="modal-header">
-        <h2>Кто голосовал</h2>
-        <button class="icon-btn" data-close="voteModal" type="button">✕</button>
+        <h2>Редактировать цитату</h2>
+        <button class="icon-btn" type="button" data-close="editQuoteModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
       <div class="modal-body">
-        <div id="voteModalContent" class="quote-list"></div>
+        <form id="editQuoteForm" class="stack-form">
+          <input id="editQuoteId" type="hidden" />
+          <label class="field">
+            <textarea id="editQuoteText" rows="6" placeholder="Текст цитаты..."></textarea>
+          </label>
+          <div class="row-actions">
+            <button id="saveQuoteBtn" class="text-btn primary" type="button">Сохранить</button>
+            <button id="cancelEditBtn" class="text-btn" type="button" data-close="editQuoteModal">Отмена</button>
+          </div>
+          <div id="editQuoteMessage" class="message"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+
+  <div id="voteDetailsModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="voteDetailsModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="voteDetailsTitle">Кто голосовал</h2>
+        <button class="icon-btn" type="button" data-close="voteDetailsModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="voteDetailsMessage" class="message"></div>
+        <div id="voteDetailsList" class="admin-list compact-list"></div>
       </div>
     </div>
   </div>

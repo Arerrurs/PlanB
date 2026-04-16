@@ -4,219 +4,323 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Мудрость дня</title>
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="page-shell">
-    <header class="site-header">
-      <button class="bookmark-btn icon-btn" id="statsBtn" aria-label="Открыть статистику">
-        <img src="./favicon.svg" alt="" class="bookmark-icon" />
-      </button>
-      <div class="header-actions">
-        <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">◐</button>
-        <button class="icon-btn hidden" id="userBtn" aria-label="Личный кабинет">👤</button>
-        <button class="pill-btn" id="openLoginBtn" type="button">Вход</button>
-        <button class="pill-btn secondary" id="openRegisterBtn" type="button">Регистрация</button>
+  <main class="page">
+    <section class="quote-card">
+      <header class="topbar">
+        <button id="statsBtn" class="brand-mark brand-button" type="button" aria-label="Открыть статистику" title="Статистика">
+          <span class="material-symbols-outlined">auto_stories</span>
+        </button>
+        <div class="topbar-actions">
+          <div id="minuteTimer" class="minute-timer" title="Автообновление цитаты">01:00</div>
+          <button id="themeBtn" class="icon-btn" type="button" aria-label="Сменить тему" title="Сменить тему">
+            <span class="material-symbols-outlined">contrast</span>
+          </button>
+          <button id="accountBtn" class="icon-btn" type="button" aria-label="Войти" title="Войти">
+            <span class="material-symbols-outlined">person</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="quote-body">
+        <p id="quoteText" class="quote-text">Загрузка цитаты...</p>
+        <input id="quoteId" type="hidden" />
       </div>
-    </header>
 
-    <main class="main-wrap">
-      <section class="quote-card">
-        <div class="quote-topline">
-          <div class="quote-meta" id="timerText">Обновление через 01:00</div>
-          <div class="quote-id" id="quotePermalinkHint"></div>
+      <footer class="quote-actions">
+        <div class="left-actions">
+          <button id="refreshBtn" class="icon-btn" type="button" aria-label="Обновить цитату" title="Обновить">
+            <span class="material-symbols-outlined">refresh</span>
+          </button>
+          <button id="copyBtn" class="icon-btn" type="button" aria-label="Скопировать цитату" title="Скопировать">
+            <span class="material-symbols-outlined">content_copy</span>
+          </button>
+          <button id="shareBtn" class="icon-btn" type="button" aria-label="Текст и ссылка" title="Текст и ссылка">
+            <span class="material-symbols-outlined">ios_share</span>
+          </button>
+          <button id="shareCardBtn" class="icon-btn" type="button" aria-label="Поделиться карточкой" title="Карточка">
+            <span class="material-symbols-outlined">image</span>
+          </button>
         </div>
-
-        <blockquote class="quote-text" id="quoteText">Загрузка цитаты…</blockquote>
-
-        <div class="quote-actions">
-          <button class="icon-btn vote-btn" id="likeBtn" type="button" aria-label="Лайк">👍</button>
-          <button class="icon-btn vote-btn" id="dislikeBtn" type="button" aria-label="Дизлайк">👎</button>
-          <button class="pill-btn secondary" id="shareTextBtn" type="button">Текст и ссылка</button>
-          <button class="pill-btn secondary" id="shareCardBtn" type="button">Карточка</button>
-          <button class="pill-btn secondary" id="refreshBtn" type="button">Другая цитата</button>
+        <div class="right-actions">
+          <button id="likeBtn" class="icon-btn vote-btn" type="button" aria-label="Нравится" title="Нравится">
+            <span class="material-symbols-outlined">thumb_up</span>
+          </button>
+          <button id="dislikeBtn" class="icon-btn vote-btn" type="button" aria-label="Не нравится" title="Не нравится">
+            <span class="material-symbols-outlined">thumb_down</span>
+          </button>
         </div>
+      </footer>
 
-        <div class="status-line" id="globalStatus"></div>
-      </section>
-    </main>
-  </div>
+      <div id="globalMessage" class="message" aria-live="polite"></div>
+    </section>
+  </main>
 
-  <div class="modal hidden" id="loginModal">
-    <div class="modal-backdrop" data-close="loginModal"></div>
-    <div class="modal-dialog">
+  <div id="authModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="authModal"></div>
+    <div class="modal-dialog slim">
       <div class="modal-header">
         <h2>Вход</h2>
-        <button class="icon-btn" data-close="loginModal" type="button">✕</button>
+        <button class="icon-btn" type="button" data-close="authModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
       <div class="modal-body">
-        <label class="field">
-          <span>Почта или логин</span>
-          <input id="loginIdentity" type="text" autocomplete="username" />
-        </label>
-        <label class="field">
-          <span>Пароль</span>
-          <input id="loginPassword" type="password" autocomplete="current-password" />
-        </label>
-        <div class="modal-actions">
-          <button class="pill-btn" id="loginSubmitBtn" type="button">Войти</button>
-          <button class="pill-btn secondary" id="switchToRegisterBtn" type="button">Регистрация</button>
-        </div>
-        <div class="status-line" id="loginStatus"></div>
+        <form id="authForm" class="stack-form">
+          <label class="field">
+            <span>Почта или логин</span>
+            <input id="identifier" type="text" autocomplete="username" placeholder="mail@example.com или login" />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+          </label>
+          <div class="row-actions single">
+            <button id="signInBtn" class="text-btn primary" type="button">Войти</button>
+          </div>
+          <button id="openRegisterBtn" class="text-btn ghost text-btn--link" type="button">Нет аккаунта? Зарегистрироваться</button>
+          <div id="authMessage" class="message" aria-live="polite"></div>
+        </form>
       </div>
     </div>
   </div>
 
-  <div class="modal hidden" id="registerModal">
+  <div id="registerModal" class="modal" hidden>
     <div class="modal-backdrop" data-close="registerModal"></div>
     <div class="modal-dialog">
       <div class="modal-header">
         <h2>Регистрация</h2>
-        <button class="icon-btn" data-close="registerModal" type="button">✕</button>
+        <button class="icon-btn" type="button" data-close="registerModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
       <div class="modal-body">
-        <label class="field">
-          <span>Почта</span>
-          <input id="registerEmail" type="email" autocomplete="email" />
-        </label>
-        <label class="field">
-          <span>Логин</span>
-          <input id="registerUsername" type="text" autocomplete="username" />
-        </label>
-        <label class="field">
-          <span>Пароль</span>
-          <input id="registerPassword" type="password" autocomplete="new-password" />
-        </label>
-        <div class="hint">Для текущих пользователей логин можно добавить позже в настройках.</div>
-        <div class="modal-actions">
-          <button class="pill-btn" id="registerSubmitBtn" type="button">Создать аккаунт</button>
-          <button class="pill-btn secondary" id="switchToLoginBtn" type="button">Уже есть аккаунт</button>
-        </div>
-        <div class="status-line" id="registerStatus"></div>
+        <form id="registerForm" class="stack-form">
+          <label class="field">
+            <span>Почта</span>
+            <input id="registerEmail" type="email" autocomplete="email" placeholder="mail@example.com" />
+          </label>
+          <label class="field">
+            <span>Логин</span>
+            <input id="registerUsername" type="text" autocomplete="username" placeholder="например, dark_reader" />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input id="registerPassword" type="password" autocomplete="new-password" placeholder="••••••••" />
+          </label>
+          <div class="row-actions single">
+            <button id="signUpBtn" class="text-btn primary" type="button">Создать аккаунт</button>
+          </div>
+          <button id="openLoginBtn" class="text-btn ghost text-btn--link" type="button">Уже есть аккаунт? Войти</button>
+          <div id="registerMessage" class="message" aria-live="polite"></div>
+        </form>
       </div>
     </div>
   </div>
 
-  <div class="modal hidden" id="cabinetModal">
-    <div class="modal-backdrop" data-close="cabinetModal"></div>
-    <div class="modal-dialog modal-dialog-lg">
+<div id="accountModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="accountModal"></div>
+    <div class="modal-dialog slim">
       <div class="modal-header">
         <h2>Личный кабинет</h2>
-        <div class="header-inline-actions">
-          <button class="icon-btn" id="settingsBtn" type="button" aria-label="Настройки">⚙</button>
-          <button class="icon-btn" data-close="cabinetModal" type="button">✕</button>
-        </div>
+        <button class="icon-btn" type="button" data-close="accountModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="cabinet-summary">
-          <div><strong>Почта:</strong> <span id="cabinetEmail">—</span></div>
-          <div><strong>Логин:</strong> <span id="cabinetUsername">—</span></div>
-          <div class="admin-link-wrap"><a class="hidden" id="adminLink" href="./admin.html">Открыть админку</a></div>
+      <div class="modal-body account-body">
+        <div class="account-row">
+          <div class="account-email" id="userEmail">—</div>
+          <button id="settingsBtn" class="icon-btn" type="button" aria-label="Настройки" title="Настройки">
+            <span class="material-symbols-outlined">settings</span>
+          </button>
         </div>
 
-        <div class="tab-row">
-          <button class="tab-btn active" data-tab="likedTab" type="button">Любимые цитаты</button>
-          <button class="tab-btn" data-tab="dislikedTab" type="button">Не любимые цитаты</button>
-          <button class="tab-btn" data-tab="suggestTab" type="button">Предложить цитату</button>
+        <div class="stack-buttons">
+          <button id="openFavoritesBtn" class="text-btn" type="button">Любимые цитаты</button>
+          <button id="openDislikedBtn" class="text-btn" type="button">Не любимые цитаты</button>
+          <button id="openSuggestionBtn" class="text-btn primary" type="button">Предложить цитату</button>
+          <a id="adminLink" class="text-btn ghost hidden-link" href="./admin.html">Админка</a>
+          <button id="signOutBtn" class="text-btn danger" type="button">Выйти</button>
         </div>
-
-        <div class="tab-panel active" id="likedTab">
-          <div class="mode-selector" id="likedModeSelector">
-            <button class="mode-btn active" data-mode="all" type="button">Все</button>
-            <button class="mode-btn" data-mode="only" type="button">Только лайкнутые</button>
-            <button class="mode-btn" data-mode="hide" type="button">Скрыть лайкнутые</button>
-          </div>
-          <div class="quote-list" id="likedList"></div>
-        </div>
-
-        <div class="tab-panel" id="dislikedTab">
-          <div class="mode-selector" id="dislikedModeSelector">
-            <button class="mode-btn active" data-mode="all" type="button">Все</button>
-            <button class="mode-btn" data-mode="only" type="button">Только дизлайкнутые</button>
-            <button class="mode-btn" data-mode="hide" type="button">Скрыть дизлайкнутые</button>
-          </div>
-          <div class="quote-list" id="dislikedList"></div>
-        </div>
-
-        <div class="tab-panel" id="suggestTab">
-          <label class="field">
-            <span>Текст цитаты</span>
-            <textarea id="suggestionText" rows="5"></textarea>
-          </label>
-          <div class="modal-actions">
-            <button class="pill-btn" id="suggestionSubmitBtn" type="button">Отправить</button>
-          </div>
-          <div class="status-line" id="suggestionStatus"></div>
-        </div>
-
-        <div class="cabinet-bottom-controls">
-          <label class="checkbox-row">
-            <input type="checkbox" id="disableTimerCheckbox" />
-            <span>Не использовать таймер</span>
-          </label>
-          <button class="pill-btn danger" id="logoutBtn" type="button">Выйти</button>
-        </div>
-        <div class="status-line" id="cabinetStatus"></div>
       </div>
     </div>
   </div>
 
-  <div class="modal hidden" id="settingsModal">
+  <div id="settingsModal" class="modal" hidden>
     <div class="modal-backdrop" data-close="settingsModal"></div>
-    <div class="modal-dialog modal-dialog-lg">
+    <div class="modal-dialog">
       <div class="modal-header">
         <h2>Настройки</h2>
-        <button class="icon-btn" data-close="settingsModal" type="button">✕</button>
+        <button class="icon-btn" type="button" data-close="settingsModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
-      <div class="modal-body modal-scroll">
-        <label class="field">
-          <span>Почта</span>
-          <input id="settingsEmail" type="email" />
-        </label>
-        <div class="hint">Смена почты у Supabase идёт через письмо-подтверждение.</div>
+      <div class="modal-body">
+        <form id="settingsForm" class="stack-form">
+          <section class="settings-section">
+            <h3>Данные аккаунта</h3>
+            <div class="settings-note">
+              Текущая почта: <strong id="settingsEmailStatic">—</strong>
+            </div>
+            <label class="field">
+              <span>Новая почта</span>
+              <input id="settingsEmailInput" type="email" autocomplete="email" placeholder="newmail@example.com" />
+            </label>
+            <label class="field">
+              <span>Логин для входа</span>
+              <input id="settingsUsername" type="text" autocomplete="username" placeholder="например, dark_reader" />
+            </label>
+            <div class="settings-note muted-note">
+              Логин можно использовать для входа вместо почты. Для текущих аккаунтов его можно задать здесь.
+            </div>
+            <div class="settings-note muted-note">
+              Почта меняется через письмо-подтверждение от Supabase. После подтверждения войти можно будет и по новой почте, и по логину.
+            </div>
+            <label class="field">
+              <span>Новый пароль</span>
+              <input id="settingsPassword" type="password" autocomplete="new-password" placeholder="Оставьте пустым, если менять не нужно" />
+            </label>
+          </section>
 
-        <label class="field">
-          <span>Логин для входа</span>
-          <input id="settingsUsername" type="text" />
-        </label>
+          <section class="settings-section">
+            <h3>Автообновление цитат</h3>
+            <label class="setting-row">
+              <span>Не использовать таймер</span>
+              <input id="disableTimerInput" class="switch-input" type="checkbox" />
+            </label>
+          </section>
 
-        <label class="field">
-          <span>Новый пароль</span>
-          <input id="settingsPassword" type="password" />
-        </label>
+          <section class="settings-section">
+            <h3>Акцентные цвета</h3>
+            <div class="theme-setting-grid">
+              <label class="field inline-field">
+                <span>Светлая тема</span>
+                <input id="lightAccentInput" type="color" value="#a855f7" />
+              </label>
+              <label class="field inline-field">
+                <span>Тёмная тема</span>
+                <input id="darkAccentInput" type="color" value="#f472b6" />
+              </label>
+            </div>
+          </section>
 
-        <div class="field-group">
-          <label class="field">
-            <span>Акцент для светлой темы</span>
-            <input id="lightAccentInput" type="color" />
-          </label>
-          <label class="field">
-            <span>Акцент для тёмной темы</span>
-            <input id="darkAccentInput" type="color" />
-          </label>
-        </div>
-
-        <div class="modal-actions sticky-actions">
-          <button class="pill-btn" id="saveSettingsBtn" type="button">Сохранить</button>
-        </div>
-        <div class="status-line" id="settingsStatus"></div>
+          <div class="row-actions">
+            <button id="saveSettingsBtn" class="text-btn primary" type="button">Сохранить</button>
+            <button id="resetAccentBtn" class="text-btn" type="button">Сбросить цвета</button>
+          </div>
+          <div id="settingsMessage" class="message" aria-live="polite"></div>
+        </form>
       </div>
     </div>
   </div>
 
-  <div class="modal hidden" id="statsModal">
+  <div id="suggestionModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="suggestionModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Предложить цитату</h2>
+        <button class="icon-btn" type="button" data-close="suggestionModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="suggestionForm" class="stack-form">
+          <label class="field">
+            <textarea id="suggestionText" rows="6" placeholder="Напиши цитату..."></textarea>
+          </label>
+          <div class="row-actions single">
+            <button id="suggestionBtn" class="text-btn primary" type="button">Отправить</button>
+          </div>
+          <div id="suggestionMessage" class="message" aria-live="polite"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="favoritesModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="favoritesModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Любимые цитаты</h2>
+        <button class="icon-btn" type="button" data-close="favoritesModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-row setting-row--stack">
+          <span>Фильтр для ленты</span>
+          <div id="likedFilterControl" class="segmented-control" role="group" aria-label="Фильтр лайкнутых цитат">
+            <button class="segment-btn" type="button" data-liked-mode="all">Все</button>
+            <button class="segment-btn" type="button" data-liked-mode="only">Показывать только лайкнутые</button>
+            <button class="segment-btn" type="button" data-liked-mode="exclude">Не показывать лайкнутые</button>
+          </div>
+        </div>
+        <div id="favoritesMessage" class="message" aria-live="polite"></div>
+        <div id="favoritesList" class="favorites-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dislikedModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="dislikedModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Не любимые цитаты</h2>
+        <button class="icon-btn" type="button" data-close="dislikedModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-row setting-row--stack">
+          <span>Фильтр для ленты</span>
+          <div id="dislikedFilterControl" class="segmented-control" role="group" aria-label="Фильтр дизлайкнутых цитат">
+            <button class="segment-btn" type="button" data-disliked-mode="all">Все</button>
+            <button class="segment-btn" type="button" data-disliked-mode="only">Показывать только дизлайкнутые</button>
+            <button class="segment-btn" type="button" data-disliked-mode="exclude">Не показывать дизлайкнутые</button>
+          </div>
+        </div>
+        <div id="dislikedMessage" class="message" aria-live="polite"></div>
+        <div id="dislikedList" class="favorites-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="statsModal" class="modal" hidden>
     <div class="modal-backdrop" data-close="statsModal"></div>
     <div class="modal-dialog">
       <div class="modal-header">
         <h2>Статистика</h2>
-        <button class="icon-btn" data-close="statsModal" type="button">✕</button>
+        <button class="icon-btn" type="button" data-close="statsModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
       <div class="modal-body">
-        <div id="statsContent" class="stats-box">Загрузка...</div>
+        <div id="statsMessage" class="message" aria-live="polite"></div>
+        <div class="mini-stats-grid">
+          <article class="mini-stat-card">
+            <div class="mini-stat-head like">
+              <span class="material-symbols-outlined">thumb_up</span>
+              <strong>Самая лайкнутая</strong>
+            </div>
+            <p id="topLikedText" class="mini-stat-text">—</p>
+            <div id="topLikedMeta" class="mini-stat-meta">—</div>
+          </article>
+          <article class="mini-stat-card">
+            <div class="mini-stat-head dislike">
+              <span class="material-symbols-outlined">thumb_down</span>
+              <strong>Самая дизлайкнутая</strong>
+            </div>
+            <p id="topDislikedText" class="mini-stat-text">—</p>
+            <div id="topDislikedMeta" class="mini-stat-meta">—</div>
+          </article>
+        </div>
       </div>
     </div>
   </div>
