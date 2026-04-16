@@ -24,6 +24,8 @@ const DEFAULT_LIGHT_ACCENT = '#a855f7';
 const DEFAULT_DARK_ACCENT = '#f472b6';
 const AUTO_REFRESH_MS = 60000;
 
+let isSigningOut = false;
+
 const state = {
   user: null,
   profile: null,
@@ -416,9 +418,12 @@ function updateAuthUI() {
 
 async function ensureProfileExists() {
   if (!state.user) return;
+  const profileUsername = normalizeUsername(state.profile?.username || '') || null;
+  const metaUsername = normalizeUsername(state.user?.user_metadata?.username || '') || null;
   const payload = {
     id: state.user.id,
     email: state.user.email,
+    username: profileUsername || metaUsername,
   };
   const { error } = await withTimeout(supabase.from('profiles').upsert(payload, { onConflict: 'id' }), 'ensure profile');
   if (error) throw error;
@@ -795,10 +800,14 @@ async function signUp() {
     state.user = data.user || data.session?.user || null;
 
     if (state.user) {
+      await withTimeout(
+        supabase.from('profiles').upsert({ id: state.user.id, email: state.user.email, username }, { onConflict: 'id' }),
+        'save sign up profile'
+      );
       closeModal(els.registerModal);
       els.registerForm?.reset();
       setMessage(els.globalMessage, 'Аккаунт создан.', 'success');
-      await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
+      await Promise.allSettled([loadProfile(), loadUserVote(state.currentQuote?.id)]);
       await loadRandomQuote();
     } else {
       setMessage(els.registerMessage, 'Аккаунт создан. Если подтверждение почты включено, завершите его в письме.', 'info');
@@ -817,14 +826,14 @@ async function signUp() {
 }
 
 async function signOutUser() {
-  if (els.signOutBtn) els.signOutBtn.disabled = true;
+  if (isSigningOut) return;
+  isSigningOut = true;
+  if (els.signOutBtn) {
+    els.signOutBtn.disabled = true;
+    els.signOutBtn.textContent = 'Выходим...';
+  }
+
   try {
-    await Promise.race([
-      supabase.auth.signOut({ scope: 'local' }),
-      new Promise((resolve) => setTimeout(resolve, 2500))
-    ]);
-  } catch {} finally {
-    clearStoredSession();
     state.user = null;
     state.profile = null;
     state.currentVote = null;
@@ -833,7 +842,26 @@ async function signOutUser() {
     updateAuthUI();
     updateVoteButtons();
     closeModal(els.accountModal);
-    window.location.replace(new URL('./index.html', window.location.href).href);
+
+    clearStoredSession();
+
+    try {
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        new Promise((resolve) => setTimeout(resolve, 2500))
+      ]);
+    } catch (error) {
+      console.warn('signOut warning:', error);
+    }
+
+    initTheme();
+    window.location.replace(new URL('./index.html?logout=1', window.location.href).href);
+  } finally {
+    if (els.signOutBtn) {
+      els.signOutBtn.disabled = false;
+      els.signOutBtn.textContent = 'Выйти';
+    }
+    isSigningOut = false;
   }
 }
 
@@ -1115,7 +1143,7 @@ async function saveSettings() {
 
     const profileUpdate = {
       email: state.user?.email || state.profile?.email || null,
-      username: nextUsername || null,
+      username: nextUsername || state.profile?.username || normalizeUsername(state.user?.user_metadata?.username || '') || null,
       light_accent: lightAccent,
       dark_accent: darkAccent,
       disable_timer: disableTimer,
@@ -1322,6 +1350,7 @@ function bindEvents() {
   els.suggestionForm?.addEventListener('submit', (event) => event.preventDefault());
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
+    if (isSigningOut) return;
     state.user = session?.user || null;
     state.likedIds = null;
     state.dislikedIds = null;
@@ -1334,6 +1363,7 @@ function bindEvents() {
       state.currentVote = null;
       updateAuthUI();
       updateVoteButtons();
+      initTheme();
     }
   });
 }
@@ -1360,7 +1390,7 @@ async function init() {
 
 
 window.addEventListener('pageshow', async (event) => {
-  if (!event.persisted) return;
+  if (!event.persisted || isSigningOut) return;
   try {
     await restoreSession();
     if (state.user) {
