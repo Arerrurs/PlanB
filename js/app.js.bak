@@ -297,34 +297,8 @@ function syncFilterControls() {
   });
 }
 
-function cleanupUrlParams() {
-  try {
-    const url = new URL(window.location.href);
-    const trash = ['logout', 'access_token', 'refresh_token', 'expires_at', 'expires_in', 'token_type', 'type', 'sb'];
-    let changed = false;
-    for (const key of trash) {
-      if (url.searchParams.has(key)) {
-        url.searchParams.delete(key);
-        changed = true;
-      }
-    }
-    if (window.location.hash && window.location.hash.includes('access_token=')) {
-      url.hash = '';
-      changed = true;
-    }
-    if (changed) {
-      const query = url.searchParams.toString();
-      const cleanUrl = `${url.pathname}${query ? `?${query}` : ''}${url.hash || ''}`;
-      window.history.replaceState({}, '', cleanUrl);
-    }
-  } catch (error) {
-    console.warn('cleanupUrlParams:', error);
-  }
-}
-
 function getQuoteUrl(quoteId = state.currentQuote?.id) {
   const url = new URL(window.location.href);
-  ['logout', 'access_token', 'refresh_token', 'expires_at', 'expires_in', 'token_type', 'type', 'sb'].forEach((key) => url.searchParams.delete(key));
   if (quoteId) url.searchParams.set('quote', quoteId);
   else url.searchParams.delete('quote');
   return url.toString();
@@ -438,20 +412,12 @@ function updateAuthUI() {
 
 async function ensureProfileExists() {
   if (!state.user) return;
-
-  const { data: existing, error: selectError } = await withTimeout(
-    supabase.from('profiles').select('id').eq('id', state.user.id).maybeSingle(),
-    'ensure profile lookup'
-  );
-  if (selectError) throw selectError;
-  if (existing?.id) return;
-
   const payload = {
     id: state.user.id,
     email: state.user.email,
-    username: normalizeUsername(state.user?.user_metadata?.username || '') || null,
+    username: normalizeUsername(state.profile?.username || state.user?.user_metadata?.username || '' ) || null,
   };
-  const { error } = await withTimeout(supabase.from('profiles').insert(payload), 'ensure profile insert');
+  const { error } = await withTimeout(supabase.from('profiles').upsert(payload, { onConflict: 'id' }), 'ensure profile');
   if (error) throw error;
 }
 
@@ -767,17 +733,6 @@ async function shareQuoteCard() {
   }
 }
 
-async function persistUsername(username) {
-  if (!state.user) return;
-  const clean = normalizeUsername(username);
-  if (!clean) return;
-  const { error } = await withTimeout(
-    supabase.from('profiles').update({ username: clean }).eq('id', state.user.id),
-    'save username'
-  );
-  if (error) throw error;
-}
-
 async function signIn() {
   const identifier = els.identifier?.value.trim();
   const password = els.password?.value.trim();
@@ -837,12 +792,10 @@ async function signUp() {
     state.user = data.user || data.session?.user || null;
 
     if (state.user) {
-      await ensureProfileExists();
-      await persistUsername(username);
       closeModal(els.registerModal);
       els.registerForm?.reset();
       setMessage(els.globalMessage, 'Аккаунт создан.', 'success');
-      await Promise.allSettled([loadProfile(), loadUserVote(state.currentQuote?.id)]);
+      await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
       await loadRandomQuote();
     } else {
       setMessage(els.registerMessage, 'Аккаунт создан. Если подтверждение почты включено, завершите его в письме.', 'info');
@@ -860,14 +813,10 @@ async function signUp() {
   }
 }
 
-let isSigningOut = false;
-
 async function signOutUser() {
-  if (isSigningOut) return;
-  isSigningOut = true;
   if (els.signOutBtn) els.signOutBtn.disabled = true;
   try {
-    await Promise.race([supabase.auth.signOut({ scope: 'local' }), new Promise((resolve) => setTimeout(resolve, 2500))]);
+    await Promise.race([supabase.auth.signOut(), new Promise((resolve) => setTimeout(resolve, 2500))]);
   } catch {}
   finally {
     clearStoredSession();
@@ -879,9 +828,7 @@ async function signOutUser() {
     updateAuthUI();
     updateVoteButtons();
     closeModal(els.accountModal);
-    cleanupUrlParams();
-    window.location.replace(new URL('./index.html', window.location.href).pathname);
-    isSigningOut = false;
+    window.location.href = new URL('./index.html', window.location.href).href;
   }
 }
 
@@ -1316,7 +1263,6 @@ function bindEvents() {
   els.suggestionForm?.addEventListener('submit', (event) => event.preventDefault());
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (isSigningOut) return;
     state.user = session?.user || null;
     state.likedIds = null;
     state.dislikedIds = null;
@@ -1332,7 +1278,6 @@ function bindEvents() {
 }
 
 async function init() {
-  cleanupUrlParams();
   initTheme();
   syncThemeInputs();
   syncFilterControls();

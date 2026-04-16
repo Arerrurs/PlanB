@@ -147,10 +147,6 @@
           <button id="openDislikedBtn" class="text-btn" type="button">Не любимые цитаты</button>
           <button id="openSuggestionBtn" class="text-btn primary" type="button">Предложить цитату</button>
           <a id="adminLink" class="text-btn ghost hidden-link" href="./admin.html">Админка</a>
-          <label class="account-check">
-            <input id="disableTimerInput" type="checkbox" />
-            <span>Не использовать таймер</span>
-          </label>
           <button id="signOutBtn" class="text-btn danger" type="button">Выйти</button>
         </div>
       </div>
@@ -190,6 +186,14 @@
             <label class="field">
               <span>Новый пароль</span>
               <input id="settingsPassword" type="password" autocomplete="new-password" placeholder="Оставьте пустым, если менять не нужно" />
+            </label>
+          </section>
+
+          <section class="settings-section">
+            <h3>Автообновление цитат</h3>
+            <label class="setting-row">
+              <span>Не использовать таймер</span>
+              <input id="disableTimerInput" class="switch-input" type="checkbox" />
             </label>
           </section>
 
