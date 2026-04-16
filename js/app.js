@@ -1,1304 +1,667 @@
+
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
 
-const REQUEST_TIMEOUT_MS = 12000;
-const AUTH_TIMEOUT_MS = 22000;
-const QUOTES_CACHE_KEY = 'mudrost-quotes-cache-v3';
-const CURRENT_QUOTE_KEY = 'mudrost-current-quote-v3';
-const QUOTES_CACHE_TTL_MS = 2 * 60 * 1000;
-const THEME_KEY = 'mudrost-theme';
-const LIGHT_ACCENT_KEY = 'mudrost-light-accent';
-const DARK_ACCENT_KEY = 'mudrost-dark-accent';
-const LIKED_FILTER_MODE_KEY = 'mudrost-liked-filter-mode';
-const DISLIKED_FILTER_MODE_KEY = 'mudrost-disliked-filter-mode';
-const TIMER_DISABLED_KEY = 'mudrost-disable-timer';
-const DEFAULT_LIGHT_ACCENT = '#a855f7';
-const DEFAULT_DARK_ACCENT = '#f472b6';
-const AUTO_REFRESH_MS = 60000;
-
 const state = {
+  session: null,
   user: null,
   profile: null,
   currentQuote: null,
-  currentVote: null,
-  autoRefreshAt: Date.now() + AUTO_REFRESH_MS,
-  autoRefreshBusy: false,
-  likedIds: null,
-  dislikedIds: null,
+  vote: null,
+  timerSeconds: 60,
+  timerHandle: null,
 };
 
 const $ = (id) => document.getElementById(id);
-
 const els = {
-  quoteText: $('quoteText'),
-  quoteId: $('quoteId'),
-  globalMessage: $('globalMessage'),
-  statsBtn: $('statsBtn'),
   themeBtn: $('themeBtn'),
-  accountBtn: $('accountBtn'),
-  refreshBtn: $('refreshBtn'),
-  copyBtn: $('copyBtn'),
-  shareBtn: $('shareBtn'),
-  shareCardBtn: $('shareCardBtn'),
+  quoteText: $('quoteText'),
   likeBtn: $('likeBtn'),
   dislikeBtn: $('dislikeBtn'),
+  shareTextBtn: $('shareTextBtn'),
+  shareCardBtn: $('shareCardBtn'),
+  refreshBtn: $('refreshBtn'),
+  timerText: $('timerText'),
+  quotePermalinkHint: $('quotePermalinkHint'),
+  globalStatus: $('globalStatus'),
+  userBtn: $('userBtn'),
+  openLoginBtn: $('openLoginBtn'),
+  openRegisterBtn: $('openRegisterBtn'),
 
-  authModal: $('authModal'),
+  loginModal: $('loginModal'),
   registerModal: $('registerModal'),
-  accountModal: $('accountModal'),
+  cabinetModal: $('cabinetModal'),
   settingsModal: $('settingsModal'),
-  suggestionModal: $('suggestionModal'),
-  favoritesModal: $('favoritesModal'),
-  dislikedModal: $('dislikedModal'),
   statsModal: $('statsModal'),
 
-  authForm: $('authForm'),
-  registerForm: $('registerForm'),
-  identifier: $('identifier'),
-  password: $('password'),
+  loginIdentity: $('loginIdentity'),
+  loginPassword: $('loginPassword'),
+  loginSubmitBtn: $('loginSubmitBtn'),
+  switchToRegisterBtn: $('switchToRegisterBtn'),
+  loginStatus: $('loginStatus'),
+
   registerEmail: $('registerEmail'),
   registerUsername: $('registerUsername'),
   registerPassword: $('registerPassword'),
-  signInBtn: $('signInBtn'),
-  signUpBtn: $('signUpBtn'),
-  signOutBtn: $('signOutBtn'),
-  openRegisterBtn: $('openRegisterBtn'),
-  openLoginBtn: $('openLoginBtn'),
-  authMessage: $('authMessage'),
-  registerMessage: $('registerMessage'),
+  registerSubmitBtn: $('registerSubmitBtn'),
+  switchToLoginBtn: $('switchToLoginBtn'),
+  registerStatus: $('registerStatus'),
 
-  userEmail: $('userEmail'),
-  settingsBtn: $('settingsBtn'),
+  cabinetEmail: $('cabinetEmail'),
+  cabinetUsername: $('cabinetUsername'),
   adminLink: $('adminLink'),
-  openSuggestionBtn: $('openSuggestionBtn'),
-  openFavoritesBtn: $('openFavoritesBtn'),
-  openDislikedBtn: $('openDislikedBtn'),
-  likedFilterControl: $('likedFilterControl'),
-  dislikedFilterControl: $('dislikedFilterControl'),
+  settingsBtn: $('settingsBtn'),
+  likedList: $('likedList'),
+  dislikedList: $('dislikedList'),
+  suggestionText: $('suggestionText'),
+  suggestionSubmitBtn: $('suggestionSubmitBtn'),
+  suggestionStatus: $('suggestionStatus'),
+  cabinetStatus: $('cabinetStatus'),
+  logoutBtn: $('logoutBtn'),
+  disableTimerCheckbox: $('disableTimerCheckbox'),
 
-  settingsForm: $('settingsForm'),
-  settingsEmailStatic: $('settingsEmailStatic'),
-  settingsEmailInput: $('settingsEmailInput'),
+  settingsEmail: $('settingsEmail'),
   settingsUsername: $('settingsUsername'),
   settingsPassword: $('settingsPassword'),
-  disableTimerInput: $('disableTimerInput'),
   lightAccentInput: $('lightAccentInput'),
   darkAccentInput: $('darkAccentInput'),
   saveSettingsBtn: $('saveSettingsBtn'),
-  resetAccentBtn: $('resetAccentBtn'),
-  settingsMessage: $('settingsMessage'),
+  settingsStatus: $('settingsStatus'),
 
-  suggestionForm: $('suggestionForm'),
-  suggestionText: $('suggestionText'),
-  suggestionBtn: $('suggestionBtn'),
-  suggestionMessage: $('suggestionMessage'),
-
-  favoritesList: $('favoritesList'),
-  favoritesMessage: $('favoritesMessage'),
-  dislikedList: $('dislikedList'),
-  dislikedMessage: $('dislikedMessage'),
-
-  statsMessage: $('statsMessage'),
-  topLikedText: $('topLikedText'),
-  topLikedMeta: $('topLikedMeta'),
-  topDislikedText: $('topDislikedText'),
-  topDislikedMeta: $('topDislikedMeta'),
-  minuteTimer: $('minuteTimer'),
+  statsBtn: $('statsBtn'),
+  statsContent: $('statsContent'),
 };
 
-function withTimeout(promise, label = 'request', ms = REQUEST_TIMEOUT_MS) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out`)), ms)),
-  ]);
-}
-
-function setMessage(el, text = '', type = 'info') {
+function setStatus(el, text = '', type = 'info') {
   if (!el) return;
   el.textContent = text;
-  const colors = { info: 'var(--muted)', success: 'var(--success)', error: 'var(--danger)' };
-  el.style.color = colors[type] || colors.info;
+  el.style.color = type === 'error' ? 'var(--danger)' : type === 'success' ? 'var(--success)' : 'var(--muted)';
 }
 
-function normalizeError(error) {
-  const msg = String(error?.message || error || '').toLowerCase();
-  if (msg.includes('invalid login credentials')) return 'Неверные почта, логин или пароль.';
-  if (msg.includes('email not confirmed')) return 'Подтверждение почты всё ещё включено в Supabase.';
-  if (msg.includes('user already registered')) return 'Пользователь с такой почтой уже зарегистрирован.';
-  if (msg.includes('profiles_username') || msg.includes('duplicate key')) return 'Такой логин уже занят.';
-  if (msg.includes('network') || msg.includes('fetch')) return 'Не удалось подключиться к серверу.';
-  if (msg.includes('timed out')) return 'Сервер отвечает слишком долго.';
-  if (msg.includes('row-level security')) return 'Недостаточно прав для этого действия.';
-  return error?.message || 'Что-то пошло не так.';
+function openModal(id) { document.getElementById(id)?.classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
+
+function applyTheme(theme) {
+  document.body.classList.toggle('dark', theme === 'dark');
+  localStorage.setItem('theme', theme);
+  applyAccentVars();
 }
 
-
-function isTimerDisabled() {
-  const local = localStorage.getItem(TIMER_DISABLED_KEY);
-  if (local === 'true' || local === 'false') return local === 'true';
-  return !!state.profile?.disable_timer;
+function applyAccentVars() {
+  const root = document.body;
+  const profile = state.profile || {};
+  const light = profile.light_accent || '#c45aa5';
+  const dark = profile.dark_accent || '#e88fc7';
+  root.style.setProperty('--accent', document.body.classList.contains('dark') ? dark : light);
+  root.style.setProperty('--accent-soft', hexToRgba(document.body.classList.contains('dark') ? dark : light, 0.18));
 }
 
-function setTimerDisabled(value) {
-  localStorage.setItem(TIMER_DISABLED_KEY, value ? 'true' : 'false');
-  if (state.profile) state.profile.disable_timer = !!value;
+function hexToRgba(hex, alpha) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return `rgba(196,90,165,${alpha})`;
+  const [r,g,b] = [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)];
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'dark' || saved === 'light') {
+    applyTheme(saved);
+  } else {
+    applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  }
 }
 
-function normalizeUsername(value) {
-  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+function updateAuthUI() {
+  const logged = !!state.user;
+  els.userBtn.classList.toggle('hidden', !logged);
+  els.openLoginBtn.classList.toggle('hidden', logged);
+  els.openRegisterBtn.classList.toggle('hidden', logged);
+  els.cabinetEmail.textContent = state.user?.email || '—';
+  els.cabinetUsername.textContent = state.profile?.username || '—';
+  els.adminLink.classList.toggle('hidden', state.profile?.role !== 'admin');
+  if (state.profile) {
+    els.settingsEmail.value = state.user?.email || '';
+    els.settingsUsername.value = state.profile.username || '';
+    els.lightAccentInput.value = normalizeColor(state.profile.light_accent || '#c45aa5');
+    els.darkAccentInput.value = normalizeColor(state.profile.dark_accent || '#e88fc7');
+    els.disableTimerCheckbox.checked = !!state.profile.disable_timer;
+    applyAccentVars();
+  }
 }
 
-function isValidUsername(value) {
-  return /^[a-z0-9._-]{3,24}$/.test(normalizeUsername(value));
+function normalizeColor(v) {
+  return /^#[0-9A-Fa-f]{6}$/.test(v || '') ? v : '#c45aa5';
 }
 
-async function resolveLoginEmail(identifier) {
-  const raw = String(identifier || '').trim();
-  if (!raw) return null;
-  if (raw.includes('@')) return raw.toLowerCase();
-  const { data, error } = await withTimeout(supabase.rpc('resolve_login_email', { p_identifier: raw }), 'resolve login');
-  if (error) throw error;
-  return data || null;
+async function initSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  state.session = session;
+  state.user = session?.user || null;
+  if (state.user) {
+    await ensureProfile();
+    await loadProfile();
+  }
+  updateAuthUI();
 }
 
-function resetAutoRefreshDeadline() {
-  state.autoRefreshAt = Date.now() + AUTO_REFRESH_MS;
-  updateMinuteTimer();
+async function ensureProfile() {
+  if (!state.user) return;
+  await supabase.from('profiles').upsert({
+    id: state.user.id,
+    email: state.user.email,
+    username: state.user.user_metadata?.username || null,
+  }, { onConflict: 'id' });
 }
 
-function updateMinuteTimer() {
-  if (!els.minuteTimer) return;
-  if (isTimerDisabled()) {
-    els.minuteTimer.textContent = 'таймер выкл';
-    els.minuteTimer.classList.add('is-off');
+async function loadProfile() {
+  if (!state.user) return null;
+  const { data } = await supabase.from('profiles').select('*').eq('id', state.user.id).maybeSingle();
+  state.profile = data || null;
+  updateAuthUI();
+  return data;
+}
+
+async function resolveIdentityToEmail(identity) {
+  const trimmed = identity.trim();
+  if (trimmed.includes('@')) return trimmed;
+  const { data, error } = await supabase.from('profiles').select('email').eq('username', trimmed).maybeSingle();
+  if (error || !data?.email) throw new Error('Пользователь не найден.');
+  return data.email;
+}
+
+function validateUsername(username) {
+  return /^[a-zA-Z0-9._]{3,24}$/.test(username);
+}
+
+async function login() {
+  setStatus(els.loginStatus, 'Пробуем войти...');
+  const identity = els.loginIdentity.value.trim();
+  const password = els.loginPassword.value;
+  if (!identity || !password) return setStatus(els.loginStatus, 'Заполните поля.', 'error');
+
+  try {
+    const email = await Promise.race([
+      resolveIdentityToEmail(identity),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Сервер отвечает слишком долго.')), 10000))
+    ]);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    state.session = data.session;
+    state.user = data.user;
+    await ensureProfile();
+    await loadProfile();
+    updateAuthUI();
+    closeModal('loginModal');
+    setStatus(els.globalStatus, 'Вход выполнен.', 'success');
+    await loadQuoteFromUrlOrRandom();
+  } catch (e) {
+    setStatus(els.loginStatus, humanError(e), 'error');
+  }
+}
+
+async function register() {
+  setStatus(els.registerStatus, 'Создаём аккаунт...');
+  const email = els.registerEmail.value.trim();
+  const username = els.registerUsername.value.trim();
+  const password = els.registerPassword.value;
+  if (!email || !username || !password) return setStatus(els.registerStatus, 'Заполните поля.', 'error');
+  if (!validateUsername(username)) return setStatus(els.registerStatus, 'Логин: латиница, цифры, точка, подчёркивание. 3–24 символа.', 'error');
+  const { data: existing } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle();
+  if (existing) return setStatus(els.registerStatus, 'Такой логин уже занят.', 'error');
+
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { username } }
+    });
+    if (error) throw error;
+    // If confirm email disabled, session exists immediately
+    if (data.user) {
+      state.user = data.user;
+      state.session = data.session || null;
+      await supabase.from('profiles').upsert({ id: data.user.id, email, username }, { onConflict: 'id' });
+      await loadProfile();
+    }
+    closeModal('registerModal');
+    openModal('loginModal');
+    els.loginIdentity.value = username;
+    setStatus(els.globalStatus, data.session ? 'Аккаунт создан, вход выполнен.' : 'Аккаунт создан. Теперь войдите.', 'success');
+    if (data.session) {
+      closeModal('loginModal');
+      updateAuthUI();
+      await loadQuoteFromUrlOrRandom();
+    }
+  } catch (e) {
+    setStatus(els.registerStatus, humanError(e), 'error');
+  }
+}
+
+function humanError(e) {
+  const msg = String(e?.message || e || '');
+  if (msg.toLowerCase().includes('invalid login credentials')) return 'Неверный логин/почта или пароль.';
+  if (msg.toLowerCase().includes('email rate limit')) return 'Слишком много попыток, попробуйте позже.';
+  if (msg.toLowerCase().includes('user already registered')) return 'Такой пользователь уже зарегистрирован.';
+  return msg || 'Что-то пошло не так.';
+}
+
+async function localLogout() {
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch (e) {
+    console.error(e);
+  } finally {
+    for (const key of Object.keys(localStorage)) {
+      if (key.includes('supabase')) localStorage.removeItem(key);
+    }
+    sessionStorage.clear();
+    state.session = null;
+    state.user = null;
+    state.profile = null;
+    updateAuthUI();
+    closeModal('cabinetModal');
+    setStatus(els.globalStatus, 'Вы вышли из аккаунта.', 'success');
+    await loadQuoteFromUrlOrRandom();
+  }
+}
+
+async function loadQuoteFromUrlOrRandom() {
+  const fromUrl = new URLSearchParams(location.search).get('quote');
+  if (fromUrl) {
+    const loaded = await loadQuoteById(fromUrl);
+    if (loaded) return;
+  }
+  await loadRandomQuote();
+}
+
+function updateQuoteUrl(id) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('quote', id);
+  history.replaceState({}, '', url);
+  els.quotePermalinkHint.textContent = `#${id.slice(0, 8)}`;
+}
+
+async function loadQuoteById(id) {
+  const { data } = await supabase.from('quotes').select('*').eq('id', id).eq('status', 'approved').maybeSingle();
+  if (!data) return false;
+  state.currentQuote = data;
+  updateQuoteUrl(data.id);
+  renderCurrentQuote();
+  return true;
+}
+
+async function loadRandomQuote() {
+  setStatus(els.globalStatus, '');
+  const { data, error } = await supabase.from('quotes').select('*').eq('status', 'approved');
+  if (error) {
+    els.quoteText.textContent = 'Сервер долго думает. Попробуйте ещё раз.';
     return;
   }
-  els.minuteTimer.classList.remove('is-off');
-  const remaining = Math.max(0, state.autoRefreshAt - Date.now());
-  const totalSeconds = Math.ceil(remaining / 1000);
-  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
-  const seconds = String(totalSeconds % 60).padStart(2, '0');
-  els.minuteTimer.textContent = `${minutes}:${seconds}`;
+  if (!data?.length) {
+    els.quoteText.textContent = 'Пока нет опубликованных цитат.';
+    return;
+  }
+  let list = data;
+  if (state.user && state.profile) {
+    const { data: votes } = await supabase.from('quote_votes').select('quote_id,vote').eq('user_id', state.user.id);
+    const map = new Map((votes || []).map(v => [v.quote_id, v.vote]));
+    const modeLiked = state.profile.liked_mode || 'all';
+    const modeDisliked = state.profile.disliked_mode || 'all';
+    list = list.filter(q => {
+      const vote = map.get(q.id);
+      if (modeLiked === 'only' && vote !== 'like') return false;
+      if (modeLiked === 'hide' && vote === 'like') return false;
+      if (modeDisliked === 'only' && vote !== 'dislike') return false;
+      if (modeDisliked === 'hide' && vote === 'dislike') return false;
+      return true;
+    });
+    if (!list.length) list = data;
+  }
+  state.currentQuote = list[Math.floor(Math.random() * list.length)];
+  updateQuoteUrl(state.currentQuote.id);
+  await syncVoteState();
+  renderCurrentQuote();
+  restartTimer();
 }
 
-function startAutoRefreshTicker() {
-  updateMinuteTimer();
-  window.setInterval(async () => {
-    updateMinuteTimer();
-    if (isTimerDisabled()) return;
-    if (Date.now() < state.autoRefreshAt || state.autoRefreshBusy) return;
-    state.autoRefreshBusy = true;
-    try {
+async function syncVoteState() {
+  state.vote = null;
+  if (!state.user || !state.currentQuote) return;
+  const { data } = await supabase.from('quote_votes').select('vote').eq('user_id', state.user.id).eq('quote_id', state.currentQuote.id).maybeSingle();
+  state.vote = data?.vote || null;
+}
+
+function renderCurrentQuote() {
+  els.quoteText.textContent = state.currentQuote?.text || 'Нет цитаты';
+  els.likeBtn.classList.toggle('active-like', state.vote === 'like');
+  els.dislikeBtn.classList.toggle('active-dislike', state.vote === 'dislike');
+}
+
+function restartTimer() {
+  clearInterval(state.timerHandle);
+  state.timerSeconds = 60;
+  updateTimerText();
+  if (state.profile?.disable_timer) {
+    els.timerText.textContent = 'Таймер выключен';
+    return;
+  }
+  state.timerHandle = setInterval(async () => {
+    state.timerSeconds -= 1;
+    updateTimerText();
+    if (state.timerSeconds <= 0) {
+      clearInterval(state.timerHandle);
       await loadRandomQuote();
-    } finally {
-      state.autoRefreshBusy = false;
     }
   }, 1000);
 }
 
-function openModal(el) {
-  if (!el) return;
-  el.hidden = false;
-  document.body.style.overflow = 'hidden';
+function updateTimerText() {
+  const m = String(Math.floor(state.timerSeconds / 60)).padStart(2, '0');
+  const s = String(state.timerSeconds % 60).padStart(2, '0');
+  els.timerText.textContent = `Обновление через ${m}:${s}`;
 }
 
-function closeModal(el) {
-  if (!el) return;
-  el.hidden = true;
-  if ([...document.querySelectorAll('.modal')].every((modal) => modal.hidden)) {
-    document.body.style.overflow = '';
+async function vote(type, fromList = false) {
+  if (!state.user) {
+    setStatus(els.globalStatus, 'Сначала зарегистрируйтесь или войдите.', 'error');
+    openModal('loginModal');
+    return;
   }
-}
+  const quoteId = fromList ? fromList : state.currentQuote?.id;
+  if (!quoteId) return;
 
-function hexToRgb(hex) {
-  const value = hex.replace('#', '').trim();
-  const normalized = value.length === 3 ? value.split('').map((x) => x + x).join('') : value;
-  const int = Number.parseInt(normalized, 16);
-  return {
-    r: (int >> 16) & 255,
-    g: (int >> 8) & 255,
-    b: int & 255,
-  };
-}
-
-function setAccentCssVar(color) {
-  const safe = color || DEFAULT_LIGHT_ACCENT;
-  const { r, g, b } = hexToRgb(safe);
-  document.documentElement.style.setProperty('--primary', safe);
-  document.documentElement.style.setProperty('--primary-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
-  document.body.style.setProperty('--primary', safe);
-  document.body.style.setProperty('--primary-soft', `rgba(${r}, ${g}, ${b}, 0.14)`);
-}
-
-function getStoredAccent(theme) {
-  return localStorage.getItem(theme === 'dark' ? DARK_ACCENT_KEY : LIGHT_ACCENT_KEY)
-    || (theme === 'dark' ? DEFAULT_DARK_ACCENT : DEFAULT_LIGHT_ACCENT);
-}
-
-function applyTheme(theme) {
-  document.body.classList.toggle('dark', theme === 'dark');
-  localStorage.setItem(THEME_KEY, theme);
-  setAccentCssVar(getStoredAccent(theme));
-}
-
-function initTheme() {
-  const savedTheme = localStorage.getItem(THEME_KEY);
-  const theme = savedTheme === 'dark' || savedTheme === 'light'
-    ? savedTheme
-    : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  applyTheme(theme);
-}
-
-function syncThemeInputs() {
-  if (els.lightAccentInput) els.lightAccentInput.value = getStoredAccent('light');
-  if (els.darkAccentInput) els.darkAccentInput.value = getStoredAccent('dark');
-}
-
-function getFilterMode(kind) {
-  const key = kind === 'like' ? LIKED_FILTER_MODE_KEY : DISLIKED_FILTER_MODE_KEY;
-  const value = localStorage.getItem(key);
-  return ['all', 'only', 'exclude'].includes(value) ? value : 'all';
-}
-
-function setFilterMode(kind, mode) {
-  const key = kind === 'like' ? LIKED_FILTER_MODE_KEY : DISLIKED_FILTER_MODE_KEY;
-  localStorage.setItem(key, ['all', 'only', 'exclude'].includes(mode) ? mode : 'all');
-}
-
-function syncFilterControls() {
-  const likedMode = getFilterMode('like');
-  const dislikedMode = getFilterMode('dislike');
-
-  els.likedFilterControl?.querySelectorAll('[data-liked-mode]').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.likedMode === likedMode);
-    btn.setAttribute('aria-pressed', btn.dataset.likedMode === likedMode ? 'true' : 'false');
-  });
-
-  els.dislikedFilterControl?.querySelectorAll('[data-disliked-mode]').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.dislikedMode === dislikedMode);
-    btn.setAttribute('aria-pressed', btn.dataset.dislikedMode === dislikedMode ? 'true' : 'false');
-  });
-}
-
-function getQuoteUrl(quoteId = state.currentQuote?.id) {
-  const url = new URL(window.location.href);
-  if (quoteId) url.searchParams.set('quote', quoteId);
-  else url.searchParams.delete('quote');
-  return url.toString();
-}
-
-function updateQuoteUrl(quoteId, replace = true) {
-  const nextUrl = getQuoteUrl(quoteId);
-  try {
-    if (replace) window.history.replaceState({}, '', nextUrl);
-    else window.history.pushState({}, '', nextUrl);
-  } catch (error) {
-    console.warn('updateQuoteUrl:', error);
+  if (type === state.vote && quoteId === state.currentQuote?.id) {
+    await supabase.from('quote_votes').delete().eq('user_id', state.user.id).eq('quote_id', quoteId);
+    state.vote = null;
+  } else {
+    await supabase.from('quote_votes').upsert({ user_id: state.user.id, quote_id: quoteId, vote: type }, { onConflict: 'user_id,quote_id' });
+    if (quoteId === state.currentQuote?.id) state.vote = type;
   }
+  renderCurrentQuote();
+  if (openPanelsVisible()) await loadCabinetLists();
 }
 
-function saveQuotesCache(quotes) {
-  try {
-    sessionStorage.setItem(QUOTES_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), quotes }));
-  } catch {}
+function openPanelsVisible() {
+  return !els.cabinetModal.classList.contains('hidden');
 }
 
-function readQuotesCache() {
-  try {
-    const raw = sessionStorage.getItem(QUOTES_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.savedAt || !Array.isArray(parsed?.quotes)) return null;
-    if (Date.now() - parsed.savedAt > QUOTES_CACHE_TTL_MS) return null;
-    return parsed.quotes;
-  } catch {
-    return null;
-  }
-}
-
-function saveCurrentQuote(quote) {
-  if (!quote?.id || !quote?.text) return;
-  try {
-    localStorage.setItem(CURRENT_QUOTE_KEY, JSON.stringify(quote));
-  } catch {}
-}
-
-function readCurrentQuote() {
-  try {
-    const raw = localStorage.getItem(CURRENT_QUOTE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.id || !parsed?.text) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function showQuote(quote, syncUrl = true) {
-  if (!quote) return;
-  state.currentQuote = quote;
-  if (els.quoteText) els.quoteText.textContent = quote.text;
-  if (els.quoteId) els.quoteId.value = quote.id;
-  saveCurrentQuote(quote);
-  resetAutoRefreshDeadline();
-  if (syncUrl) updateQuoteUrl(quote.id);
-}
-
-function restoreCachedQuoteToUI() {
-  const quote = readCurrentQuote();
-  if (!quote) return false;
-  showQuote(quote, false);
-  return true;
-}
-
-function clearStoredSession() {
-  try {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.includes('supabase') || key === CURRENT_QUOTE_KEY) localStorage.removeItem(key);
-    });
-    Object.keys(sessionStorage).forEach((key) => {
-      if (key.includes('supabase') || key === QUOTES_CACHE_KEY) sessionStorage.removeItem(key);
-    });
-  } catch {}
-}
-
-function updateAccountButton() {
-  const loggedIn = !!state.user;
-  if (!els.accountBtn) return;
-  els.accountBtn.title = loggedIn ? 'Личный кабинет' : 'Войти';
-  els.accountBtn.setAttribute('aria-label', loggedIn ? 'Личный кабинет' : 'Войти');
-}
-
-function updateVoteButtons() {
-  const vote = state.currentVote;
-  els.likeBtn?.classList.toggle('active', vote === 'like');
-  els.likeBtn?.classList.toggle('like', vote === 'like');
-  els.dislikeBtn?.classList.toggle('active', vote === 'dislike');
-  els.dislikeBtn?.classList.toggle('dislike', vote === 'dislike');
-}
-
-function updateAuthUI() {
-  updateAccountButton();
-  setMessage(els.authMessage, '');
-  setMessage(els.settingsMessage, '');
-  if (els.userEmail) els.userEmail.textContent = state.profile?.username ? `${state.profile.username} · ${state.user?.email || '—'}` : (state.user?.email || '—');
-  if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
-  if (els.settingsEmailStatic) els.settingsEmailStatic.textContent = state.user?.email || '—';
-  if (els.settingsEmailInput) els.settingsEmailInput.value = '';
-  if (els.settingsUsername) els.settingsUsername.value = state.profile?.username || '';
-  if (els.disableTimerInput) els.disableTimerInput.checked = isTimerDisabled();
-  syncThemeInputs();
-  updateMinuteTimer();
-  syncFilterControls();
-}
-
-async function ensureProfileExists() {
+async function loadCabinetLists() {
   if (!state.user) return;
-  const payload = {
-    id: state.user.id,
-    email: state.user.email,
-    username: normalizeUsername(state.profile?.username || state.user?.user_metadata?.username || '' ) || null,
-  };
-  const { error } = await withTimeout(supabase.from('profiles').upsert(payload, { onConflict: 'id' }), 'ensure profile');
-  if (error) throw error;
-}
-
-async function loadProfile() {
-  if (!state.user) {
-    state.profile = null;
-    updateAuthUI();
-    return;
-  }
-
-  const { data, error } = await withTimeout(
-    supabase.from('profiles').select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent,disable_timer').eq('id', state.user.id).maybeSingle(),
-    'load profile'
-  );
-  if (error) throw error;
-  state.profile = data || null;
-
-  if (state.profile?.light_accent) localStorage.setItem(LIGHT_ACCENT_KEY, state.profile.light_accent);
-  if (state.profile?.dark_accent) localStorage.setItem(DARK_ACCENT_KEY, state.profile.dark_accent);
-  if (typeof state.profile?.disable_timer === 'boolean') localStorage.setItem(TIMER_DISABLED_KEY, state.profile.disable_timer ? 'true' : 'false');
-  setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
-  updateAuthUI();
-}
-
-async function restoreSession() {
-  try {
-    const { data, error } = await withTimeout(supabase.auth.getSession(), 'get session');
-    if (error) throw error;
-    state.user = data?.session?.user || null;
-  } catch {
-    state.user = null;
-  }
-}
-
-async function fetchApprovedQuotes() {
-  const cached = readQuotesCache();
-  if (cached?.length) return cached;
-  const { data, error } = await withTimeout(
-    supabase.from('quotes').select('id,text,status').eq('status', 'approved'),
-    'load quotes'
-  );
-  if (error) throw error;
-  const quotes = data || [];
-  saveQuotesCache(quotes);
-  return quotes;
-}
-
-async function loadUserVote(quoteId) {
-  if (!state.user || !quoteId) {
-    state.currentVote = null;
-    updateVoteButtons();
-    return;
-  }
-  try {
-    const { data, error } = await withTimeout(
-      supabase.from('quote_votes').select('vote').eq('quote_id', quoteId).eq('user_id', state.user.id).maybeSingle(),
-      'load current vote'
-    );
-    if (error) throw error;
-    state.currentVote = data?.vote || null;
-  } catch {
-    state.currentVote = null;
-  }
-  updateVoteButtons();
-}
-
-async function getVoteIds(kind, force = false) {
-  if (!state.user) return [];
-  if (!force) {
-    if (kind === 'like' && state.likedIds) return state.likedIds;
-    if (kind === 'dislike' && state.dislikedIds) return state.dislikedIds;
-  }
-
-  const { data, error } = await withTimeout(
-    supabase.from('quote_votes').select('quote_id').eq('user_id', state.user.id).eq('vote', kind),
-    `load ${kind} ids`
-  );
-  if (error) throw error;
-  const ids = (data || []).map((item) => item.quote_id).filter(Boolean);
-  if (kind === 'like') state.likedIds = ids;
-  if (kind === 'dislike') state.dislikedIds = ids;
-  return ids;
-}
-
-async function filterQuotesForUser(quotes) {
-  if (!state.user) return quotes;
-  let result = [...quotes];
-  const likedMode = getFilterMode('like');
-  const dislikedMode = getFilterMode('dislike');
-
-  if (likedMode !== 'all') {
-    const likedIds = await getVoteIds('like');
-    result = likedMode === 'only'
-      ? result.filter((quote) => likedIds.includes(quote.id))
-      : result.filter((quote) => !likedIds.includes(quote.id));
-  }
-
-  if (dislikedMode !== 'all') {
-    const dislikedIds = await getVoteIds('dislike');
-    result = dislikedMode === 'only'
-      ? result.filter((quote) => dislikedIds.includes(quote.id))
-      : result.filter((quote) => !dislikedIds.includes(quote.id));
-  }
-
-  return result;
-}
-
-async function loadRandomQuote() {
-  if (!state.currentQuote && !restoreCachedQuoteToUI()) {
-    if (els.quoteText) els.quoteText.textContent = 'Загрузка цитаты...';
-  }
-
-  try {
-    const quotes = await fetchApprovedQuotes();
-    let pool = await filterQuotesForUser(quotes);
-    if (!pool.length) pool = quotes;
-    if (!pool.length) {
-      if (els.quoteText) els.quoteText.textContent = 'Пока нет опубликованных цитат.';
-      return;
-    }
-
-    const available = pool.filter((item) => item.id !== state.currentQuote?.id);
-    const list = available.length ? available : pool;
-    const selected = list[Math.floor(Math.random() * list.length)];
-    showQuote(selected, true);
-    await loadUserVote(selected.id);
-  } catch (error) {
-    console.warn('loadRandomQuote:', error);
-    setMessage(els.globalMessage, normalizeError(error), 'error');
-  }
-}
-
-async function loadQuoteById(quoteId) {
-  if (!quoteId) return false;
-  try {
-    const { data, error } = await withTimeout(
-      supabase.from('quotes').select('id,text,status').eq('id', quoteId).maybeSingle(),
-      'load quote by id'
-    );
-    if (error) throw error;
-    if (!data || data.status !== 'approved') return false;
-
-    const filtered = await filterQuotesForUser([data]);
-    if (!filtered.length) return false;
-
-    showQuote(data, true);
-    await loadUserVote(data.id);
-    return true;
-  } catch (error) {
-    console.warn('loadQuoteById:', error);
-    return false;
-  }
-}
-
-async function copyQuote() {
-  const shareText = `${state.currentQuote?.text || ''}\n\n${getQuoteUrl()}`;
-  try {
-    await navigator.clipboard.writeText(shareText.trim());
-    setMessage(els.globalMessage, 'Цитата и ссылка скопированы.', 'success');
-  } catch {
-    setMessage(els.globalMessage, 'Не удалось скопировать.', 'error');
-  }
-}
-
-function isMobileLikeDevice() {
-  return window.matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-}
-
-function roundedRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function wrapLines(ctx, text, maxWidth) {
-  const lines = [];
-  const paragraphs = String(text || '').split(/\n+/);
-  for (const [index, paragraph] of paragraphs.entries()) {
-    const words = paragraph.split(/\s+/).filter(Boolean);
-    let line = '';
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (ctx.measureText(test).width <= maxWidth) line = test;
-      else {
-        if (line) lines.push(line);
-        line = word;
-      }
-    }
-    if (line) lines.push(line);
-    if (index < paragraphs.length - 1) lines.push('');
-  }
-  return lines;
-}
-
-async function generateShareImageBlob() {
-  const quoteText = state.currentQuote?.text || '';
-  const styles = getComputedStyle(document.body);
-  const bg = styles.getPropertyValue('--bg').trim() || '#120f1a';
-  const surface = styles.getPropertyValue('--surface').trim() || '#191420';
-  const border = styles.getPropertyValue('--border').trim() || '#3e314c';
-  const text = styles.getPropertyValue('--text').trim() || '#f5f0f7';
-  const muted = styles.getPropertyValue('--muted').trim() || '#bbaec3';
-  const primary = styles.getPropertyValue('--primary').trim() || '#f472b6';
-  const primarySoft = styles.getPropertyValue('--primary-soft').trim() || 'rgba(244,114,182,0.14)';
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 1080;
-  canvas.height = 1350;
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = primarySoft;
-  ctx.beginPath();
-  ctx.arc(180, 120, 220, 0, Math.PI * 2);
-  ctx.fill();
-
-  const x = 72;
-  const y = 96;
-  const w = 936;
-  const h = 1158;
-  roundedRect(ctx, x, y, w, h, 42);
-  ctx.fillStyle = surface;
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = border;
-  ctx.stroke();
-
-  ctx.save();
-  roundedRect(ctx, x + 56, y + 52, 78, 78, 24);
-  ctx.fillStyle = primarySoft;
-  ctx.fill();
-  ctx.font = '48px Spectral';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = primary;
-  ctx.fillText('✦', x + 95, y + 92);
-  ctx.restore();
-
-  ctx.fillStyle = muted;
-  ctx.font = '600 38px Spectral';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('Мудрость дня', x + 164, y + 100);
-
-  ctx.fillStyle = text;
-  ctx.font = '600 64px Spectral';
-  const textX = x + 84;
-  const textY = y + 220;
-  const lineHeight = 88;
-  const lines = wrapLines(ctx, quoteText, w - 168);
-  lines.slice(0, 10).forEach((line, index) => {
-    ctx.fillText(line, textX, textY + index * lineHeight);
-  });
-
-  return await new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error('Не удалось создать изображение.'));
-    }, 'image/png');
-  });
-}
-
-async function shareQuoteText() {
-  if (!state.currentQuote?.text) return;
-  const quoteUrl = getQuoteUrl();
-  const textOnly = `${state.currentQuote.text}
-
-${quoteUrl}`;
-
-  if (navigator.share && isMobileLikeDevice()) {
-    try {
-      await navigator.share({ text: textOnly });
-      return;
-    } catch {}
-  }
-
-  try {
-    await navigator.clipboard.writeText(textOnly);
-    setMessage(els.globalMessage, 'Цитата и ссылка скопированы.', 'success');
-  } catch {
-    setMessage(els.globalMessage, 'Не удалось поделиться.', 'error');
-  }
-}
-
-async function shareQuoteCard() {
-  if (!state.currentQuote?.text) return;
-  try {
-    const blob = await generateShareImageBlob();
-    const file = new File([blob], 'mudrost-day-card.png', { type: 'image/png' });
-
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file] });
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = 'mudrost-day-card.png';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(objectUrl);
-    setMessage(els.globalMessage, 'Карточка сохранена.', 'success');
-  } catch (error) {
-    console.warn('shareQuoteCard:', error);
-    setMessage(els.globalMessage, 'Не удалось подготовить карточку.', 'error');
-  }
-}
-
-async function signIn() {
-  const identifier = els.identifier?.value.trim();
-  const password = els.password?.value.trim();
-  if (!identifier || !password) return setMessage(els.authMessage, 'Заполните поле входа и пароль.', 'error');
-
-  els.signInBtn.disabled = true;
-  setMessage(els.authMessage, 'Пробуем войти...');
-
-  try {
-    const email = await resolveLoginEmail(identifier);
-    if (!email) throw new Error('invalid login credentials');
-    const { data, error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }), 'sign in', AUTH_TIMEOUT_MS);
-    if (error) throw error;
-    state.user = data.user || data.session?.user || null;
-    closeModal(els.authModal);
-    els.authForm?.reset();
-    await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
-    await loadRandomQuote();
-    setMessage(els.globalMessage, 'Вход выполнен.', 'success');
-    setMessage(els.authMessage, '');
-  } catch (error) {
-    setMessage(els.authMessage, normalizeError(error), 'error');
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (data?.session?.user) {
-        state.user = data.session.user;
-        closeModal(els.authModal);
-        els.authForm?.reset();
-        await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
-        await loadRandomQuote();
-        setMessage(els.globalMessage, 'Вход выполнен.', 'success');
-      }
-    } catch {}
-  } finally {
-    els.signInBtn.disabled = false;
-  }
-}
-
-async function signUp() {
-  const email = els.registerEmail?.value.trim().toLowerCase();
-  const username = normalizeUsername(els.registerUsername?.value);
-  const password = els.registerPassword?.value || '';
-  if (!email || !password || !username) return setMessage(els.registerMessage, 'Для регистрации нужны почта, логин и пароль.', 'error');
-  if (!email.includes('@')) return setMessage(els.registerMessage, 'Для регистрации нужна корректная почта.', 'error');
-  if (!isValidUsername(username)) return setMessage(els.registerMessage, 'Логин: 3–24 символа, латиница, цифры, точка, дефис или _.', 'error');
-
-  els.signUpBtn.disabled = true;
-  setMessage(els.registerMessage, 'Создаём аккаунт...');
-
-  try {
-    const { data, error } = await withTimeout(
-      supabase.auth.signUp({ email, password, options: { data: { username } } }),
-      'sign up',
-      AUTH_TIMEOUT_MS
-    );
-    if (error) throw error;
-    state.user = data.user || data.session?.user || null;
-
-    if (state.user) {
-      closeModal(els.registerModal);
-      els.registerForm?.reset();
-      setMessage(els.globalMessage, 'Аккаунт создан.', 'success');
-      await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
-      await loadRandomQuote();
-    } else {
-      setMessage(els.registerMessage, 'Аккаунт создан. Если подтверждение почты включено, завершите его в письме.', 'info');
-    }
-  } catch (error) {
-    setMessage(els.registerMessage, normalizeError(error), 'error');
-    try {
-      const resolved = await resolveLoginEmail(email);
-      if (resolved) {
-        setMessage(els.registerMessage, 'Аккаунт, возможно, уже создан. Попробуйте войти.', 'info');
-      }
-    } catch {}
-  } finally {
-    els.signUpBtn.disabled = false;
-  }
-}
-
-async function signOutUser() {
-  if (els.signOutBtn) els.signOutBtn.disabled = true;
-  try {
-    await Promise.race([supabase.auth.signOut(), new Promise((resolve) => setTimeout(resolve, 2500))]);
-  } catch {}
-  finally {
-    clearStoredSession();
-    state.user = null;
-    state.profile = null;
-    state.currentVote = null;
-    state.likedIds = null;
-    state.dislikedIds = null;
-    updateAuthUI();
-    updateVoteButtons();
-    closeModal(els.accountModal);
-    window.location.href = new URL('./index.html', window.location.href).href;
-  }
-}
-
-async function applyVoteToQuote(quoteId, voteType) {
-  if (!state.user || !quoteId) return false;
-
-  let currentVote = null;
-  try {
-    const { data, error } = await withTimeout(
-      supabase.from('quote_votes').select('vote').eq('quote_id', quoteId).eq('user_id', state.user.id).maybeSingle(),
-      'get current vote'
-    );
-    if (error) throw error;
-    currentVote = data?.vote || null;
-  } catch (error) {
-    setMessage(els.globalMessage, normalizeError(error), 'error');
-    return false;
-  }
-
-  try {
-    if (currentVote === voteType) {
-      const { error } = await withTimeout(
-        supabase.from('quote_votes').delete().eq('quote_id', quoteId).eq('user_id', state.user.id),
-        'delete vote'
-      );
-      if (error) throw error;
-      if (state.currentQuote?.id === quoteId) state.currentVote = null;
-    } else {
-      const { error } = await withTimeout(
-        supabase.from('quote_votes').upsert({ quote_id: quoteId, user_id: state.user.id, vote: voteType }, { onConflict: 'quote_id,user_id' }),
-        'save vote'
-      );
-      if (error) throw error;
-      if (state.currentQuote?.id === quoteId) state.currentVote = voteType;
-    }
-
-    state.likedIds = null;
-    state.dislikedIds = null;
-    if (state.currentQuote?.id === quoteId) updateVoteButtons();
-
-    await Promise.allSettled([
-      !els.favoritesModal.hidden ? openFavorites(true) : Promise.resolve(),
-      !els.dislikedModal.hidden ? openDisliked(true) : Promise.resolve(),
-    ]);
-
-    if (currentVote === 'like' || currentVote === 'dislike' || getFilterMode('like') !== 'all' || getFilterMode('dislike') !== 'all') {
-      await loadRandomQuote();
-    }
-    return true;
-  } catch (error) {
-    setMessage(els.globalMessage, normalizeError(error), 'error');
-    return false;
-  }
-}
-
-async function vote(voteType) {
-  if (!state.user) {
-    setMessage(els.globalMessage, 'Сначала зарегистрируйтесь или войдите.', 'info');
-    openModal(els.authModal);
-    return;
-  }
-  if (!state.currentQuote?.id) return;
-
-  els.likeBtn.disabled = true;
-  els.dislikeBtn.disabled = true;
-  try {
-    await applyVoteToQuote(state.currentQuote.id, voteType);
-  } finally {
-    els.likeBtn.disabled = false;
-    els.dislikeBtn.disabled = false;
-  }
-}
-
-async function saveProfileSetting(field, value) {
-  if (!state.user) return false;
-  try {
-    const { error } = await withTimeout(
-      supabase.from('profiles').update({ [field]: value }).eq('id', state.user.id),
-      `save ${field}`
-    );
-    if (error) throw error;
-    if (state.profile) state.profile[field] = value;
-    updateAuthUI();
-    await loadRandomQuote();
-    return true;
-  } catch (error) {
-    setMessage(els.globalMessage, normalizeError(error), 'error');
-    return false;
-  }
-}
-
-function renderVoteList(targetEl, quotes, activeVote) {
-  targetEl.innerHTML = quotes.map((quote) => `
-    <article class="favorite-item" data-quote-id="${quote.id}">
-      <p>${escapeHtml(quote.text)}</p>
-      <div class="favorite-item__actions">
-        <button class="icon-btn vote-btn ${activeVote === 'like' ? 'active like' : ''}" type="button" data-vote-list="like" data-quote-id="${quote.id}" aria-label="Нравится" title="Нравится">
-          <span class="material-symbols-outlined">thumb_up</span>
-        </button>
-        <button class="icon-btn vote-btn ${activeVote === 'dislike' ? 'active dislike' : ''}" type="button" data-vote-list="dislike" data-quote-id="${quote.id}" aria-label="Не нравится" title="Не нравится">
-          <span class="material-symbols-outlined">thumb_down</span>
-        </button>
-      </div>
-    </article>
-  `).join('');
-}
-
-async function loadVoteList(kind) {
-  const messageEl = kind === 'like' ? els.favoritesMessage : els.dislikedMessage;
-  const listEl = kind === 'like' ? els.favoritesList : els.dislikedList;
-  const ids = await getVoteIds(kind, true);
-
+  const { data: votes } = await supabase.from('quote_votes').select('quote_id,vote').eq('user_id', state.user.id);
+  const votesMap = new Map((votes || []).map(v => [v.quote_id, v.vote]));
+  const ids = [...votesMap.keys()];
   if (!ids.length) {
-    setMessage(messageEl, kind === 'like' ? 'Пока нет лайкнутых цитат.' : 'Пока нет дизлайкнутых цитат.');
-    listEl.innerHTML = '';
+    els.likedList.innerHTML = '<div class="admin-hint">Пока нет данных.</div>';
+    els.dislikedList.innerHTML = '<div class="admin-hint">Пока нет данных.</div>';
     return;
   }
+  const { data: quotes } = await supabase.from('quotes').select('id,text').in('id', ids);
+  const likedMode = state.profile?.liked_mode || 'all';
+  const dislikedMode = state.profile?.disliked_mode || 'all';
 
-  const { data, error } = await withTimeout(
-    supabase.from('quotes').select('id,text,status').in('id', ids).eq('status', 'approved'),
-    `load ${kind} quotes`
-  );
-  if (error) throw error;
-
-  const quotes = data || [];
-  if (!quotes.length) {
-    setMessage(messageEl, kind === 'like' ? 'Пока нет лайкнутых цитат.' : 'Пока нет дизлайкнутых цитат.');
-    listEl.innerHTML = '';
-    return;
-  }
-
-  setMessage(messageEl, '');
-  renderVoteList(listEl, quotes, kind);
+  const quoteById = new Map((quotes || []).map(q => [q.id, q]));
+  const likedRows = [];
+  const dislikedRows = [];
+  (quotes || []).forEach(q => {
+    const vote = votesMap.get(q.id);
+    const likedPass = likedMode === 'all' || (likedMode === 'only' && vote === 'like') || (likedMode === 'hide' && vote !== 'like');
+    const dislikedPass = dislikedMode === 'all' || (dislikedMode === 'only' && vote === 'dislike') || (dislikedMode === 'hide' && vote !== 'dislike');
+    if (likedPass) likedRows.push(renderMiniQuote(q, vote));
+    if (dislikedPass) dislikedRows.push(renderMiniQuote(q, vote));
+  });
+  els.likedList.innerHTML = likedRows.join('') || '<div class="admin-hint">Пока нет данных.</div>';
+  els.dislikedList.innerHTML = dislikedRows.join('') || '<div class="admin-hint">Пока нет данных.</div>';
+  bindMiniVotes();
 }
 
-async function openFavorites(refreshOnly = false) {
-  if (!state.user) {
-    setMessage(els.globalMessage, 'Сначала зарегистрируйтесь или войдите.', 'info');
-    openModal(els.authModal);
-    return;
-  }
-  if (!refreshOnly) {
-    setMessage(els.favoritesMessage, 'Загружаем...');
-    openModal(els.favoritesModal);
-  }
-  try {
-    await loadVoteList('like');
-  } catch (error) {
-    setMessage(els.favoritesMessage, normalizeError(error), 'error');
-  }
+function renderMiniQuote(q, vote) {
+  return `<div class="mini-quote">
+    <div class="mini-quote-text">${escapeHtml(q.text)}</div>
+    <div class="mini-quote-actions">
+      <button class="icon-btn mini-vote ${vote === 'like' ? 'active-like' : ''}" data-quote-id="${q.id}" data-vote="like" type="button">👍</button>
+      <button class="icon-btn mini-vote ${vote === 'dislike' ? 'active-dislike' : ''}" data-quote-id="${q.id}" data-vote="dislike" type="button">👎</button>
+    </div>
+  </div>`;
 }
 
-async function openDisliked(refreshOnly = false) {
-  if (!state.user) {
-    setMessage(els.globalMessage, 'Сначала зарегистрируйтесь или войдите.', 'info');
-    openModal(els.authModal);
-    return;
-  }
-  if (!refreshOnly) {
-    setMessage(els.dislikedMessage, 'Загружаем...');
-    openModal(els.dislikedModal);
-  }
-  try {
-    await loadVoteList('dislike');
-  } catch (error) {
-    setMessage(els.dislikedMessage, normalizeError(error), 'error');
-  }
+function bindMiniVotes() {
+  document.querySelectorAll('.mini-vote').forEach(btn => {
+    btn.onclick = () => vote(btn.dataset.vote, btn.dataset.quoteId);
+  });
 }
 
-async function sendSuggestion() {
-  const text = els.suggestionText?.value.trim();
-  if (!text) return setMessage(els.suggestionMessage, 'Напиши цитату.', 'error');
-
-  els.suggestionBtn.disabled = true;
-  setMessage(els.suggestionMessage, 'Отправляем...');
-  try {
-    const { error } = await withTimeout(
-      supabase.from('quote_suggestions').insert({ text, user_id: state.user?.id || null }),
-      'send suggestion'
-    );
-    if (error) throw error;
-    els.suggestionText.value = '';
-    setMessage(els.suggestionMessage, 'Отправлено.', 'success');
-  } catch (error) {
-    setMessage(els.suggestionMessage, normalizeError(error), 'error');
-  } finally {
-    els.suggestionBtn.disabled = false;
-  }
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
 async function saveSettings() {
   if (!state.user) return;
-  const nextPassword = els.settingsPassword?.value.trim();
-  const nextUsername = normalizeUsername(els.settingsUsername?.value);
-  const nextEmail = els.settingsEmailInput?.value.trim().toLowerCase();
-  const disableTimer = !!els.disableTimerInput?.checked;
-  const lightAccent = els.lightAccentInput?.value || DEFAULT_LIGHT_ACCENT;
-  const darkAccent = els.darkAccentInput?.value || DEFAULT_DARK_ACCENT;
+  setStatus(els.settingsStatus, 'Сохраняем...');
+  const username = els.settingsUsername.value.trim() || null;
+  const email = els.settingsEmail.value.trim();
+  const password = els.settingsPassword.value.trim();
+  const lightAccent = els.lightAccentInput.value;
+  const darkAccent = els.darkAccentInput.value;
 
-  els.saveSettingsBtn.disabled = true;
-  if (nextUsername && !isValidUsername(nextUsername)) {
-    setMessage(els.settingsMessage, 'Логин: 3–24 символа, латиница, цифры, точка, дефис или _.', 'error');
-    els.saveSettingsBtn.disabled = false;
+  if (username && !validateUsername(username)) return setStatus(els.settingsStatus, 'Некорректный логин.', 'error');
+  if (username) {
+    const { data: duplicate } = await supabase.from('profiles').select('id').eq('username', username).neq('id', state.user.id).maybeSingle();
+    if (duplicate) return setStatus(els.settingsStatus, 'Такой логин уже занят.', 'error');
+  }
+
+  const { error: pError } = await supabase.from('profiles').update({
+    username,
+    light_accent: lightAccent,
+    dark_accent: darkAccent,
+    disable_timer: !!els.disableTimerCheckbox.checked
+  }).eq('id', state.user.id);
+  if (pError) return setStatus(els.settingsStatus, pError.message, 'error');
+
+  if (email && email !== state.user.email) {
+    const { error } = await supabase.auth.updateUser({ email });
+    if (error) setStatus(els.settingsStatus, 'Почта: ' + error.message, 'error');
+    else setStatus(els.settingsStatus, 'На новую почту отправлено подтверждение.', 'success');
+  }
+
+  if (password) {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return setStatus(els.settingsStatus, error.message, 'error');
+  }
+
+  await loadProfile();
+  restartTimer();
+  setStatus(els.settingsStatus, 'Настройки сохранены.', 'success');
+}
+
+async function saveMode(kind, mode) {
+  if (!state.user) return;
+  const patch = kind === 'liked' ? { liked_mode: mode } : { disliked_mode: mode };
+  await supabase.from('profiles').update(patch).eq('id', state.user.id);
+  await loadProfile();
+  await loadCabinetLists();
+}
+
+async function sendSuggestion() {
+  if (!state.user) return setStatus(els.suggestionStatus, 'Сначала войдите.', 'error');
+  const text = els.suggestionText.value.trim();
+  if (!text) return setStatus(els.suggestionStatus, 'Введите текст.', 'error');
+  const { error } = await supabase.from('quote_suggestions').insert({ text, status: 'pending', user_id: state.user.id });
+  if (error) return setStatus(els.suggestionStatus, error.message, 'error');
+  els.suggestionText.value = '';
+  setStatus(els.suggestionStatus, 'Цитата отправлена.', 'success');
+}
+
+async function loadStats() {
+  els.statsContent.innerHTML = 'Загрузка...';
+  const { data: quotes } = await supabase.from('quotes').select('id,text,status').eq('status', 'approved');
+  const { data: votes } = await supabase.from('quote_votes').select('quote_id,vote');
+  const grouped = new Map();
+  (quotes || []).forEach(q => grouped.set(q.id, { ...q, likes: 0, dislikes: 0 }));
+  (votes || []).forEach(v => {
+    const row = grouped.get(v.quote_id);
+    if (!row) return;
+    if (v.vote === 'like') row.likes += 1;
+    if (v.vote === 'dislike') row.dislikes += 1;
+  });
+  const rows = [...grouped.values()];
+  const maxLike = rows.sort((a,b)=>b.likes-a.likes)[0];
+  const maxDislike = [...rows].sort((a,b)=>b.dislikes-a.dislikes)[0];
+  if (!rows.length || ((maxLike?.likes || 0) === 0 && (maxDislike?.dislikes || 0) === 0)) {
+    els.statsContent.innerHTML = '<div class="admin-hint">Сейчас мало данных для статистики, зайдите позже.</div>';
     return;
   }
-
-  setMessage(els.settingsMessage, 'Сохраняем...');
-
-  try {
-    if (nextPassword) {
-      const { data, error } = await withTimeout(supabase.auth.updateUser({ password: nextPassword }), 'update password', AUTH_TIMEOUT_MS);
-      if (error) throw error;
-      if (data?.user) state.user = data.user;
-    }
-
-    if (nextEmail && nextEmail !== (state.user?.email || '').toLowerCase()) {
-      const { error: emailError } = await withTimeout(supabase.auth.updateUser({ email: nextEmail }), 'update email', AUTH_TIMEOUT_MS);
-      if (emailError) throw emailError;
-    }
-
-    localStorage.setItem(LIGHT_ACCENT_KEY, lightAccent);
-    localStorage.setItem(DARK_ACCENT_KEY, darkAccent);
-    setTimerDisabled(disableTimer);
-
-    const profileUpdate = {
-      email: state.user?.email || state.profile?.email || null,
-      username: nextUsername || state.profile?.username || null,
-      light_accent: lightAccent,
-      dark_accent: darkAccent,
-      disable_timer: disableTimer,
-    };
-
-    const { error: profileError } = await withTimeout(
-      supabase.from('profiles').update(profileUpdate).eq('id', state.user.id),
-      'update profile settings'
-    );
-    if (profileError) throw profileError;
-
-    await loadProfile();
-    setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
-    updateMinuteTimer();
-    const emailNotice = nextEmail && nextEmail !== (state.user?.email || '').toLowerCase()
-      ? ' Письмо для подтверждения новой почты уже отправлено.'
-      : '';
-    setMessage(els.settingsMessage, `Настройки сохранены.${emailNotice}`, 'success');
-    if (els.settingsPassword) els.settingsPassword.value = '';
-    if (els.settingsEmailInput) els.settingsEmailInput.value = '';
-  } catch (error) {
-    setMessage(els.settingsMessage, normalizeError(error), 'error');
-  } finally {
-    els.saveSettingsBtn.disabled = false;
-  }
+  els.statsContent.innerHTML = `
+    <div class="stats-item"><strong>Самая лайкнутая</strong><div>${escapeHtml(maxLike.text)}</div><div class="admin-hint">Лайков: ${maxLike.likes}</div></div>
+    <div class="stats-item"><strong>Самая дизлайкнутая</strong><div>${escapeHtml(maxDislike.text)}</div><div class="admin-hint">Дизлайков: ${maxDislike.dislikes}</div></div>
+  `;
 }
 
-async function resetAccents() {
-  if (els.lightAccentInput) els.lightAccentInput.value = DEFAULT_LIGHT_ACCENT;
-  if (els.darkAccentInput) els.darkAccentInput.value = DEFAULT_DARK_ACCENT;
-  localStorage.setItem(LIGHT_ACCENT_KEY, DEFAULT_LIGHT_ACCENT);
-  localStorage.setItem(DARK_ACCENT_KEY, DEFAULT_DARK_ACCENT);
-  setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
-  if (state.user) {
-    await saveSettings();
-  }
+function buildQuoteLink() {
+  if (!state.currentQuote?.id) return location.href;
+  const url = new URL(location.href);
+  url.searchParams.set('quote', state.currentQuote.id);
+  return url.toString();
 }
 
-async function loadStatsModal() {
-  setMessage(els.statsMessage, 'Загружаем...');
-  openModal(els.statsModal);
-
-  try {
-    const [votesRes, quotesRes] = await Promise.all([
-      withTimeout(supabase.from('quote_votes').select('quote_id,vote'), 'load vote stats'),
-      withTimeout(supabase.from('quotes').select('id,text,status').eq('status', 'approved'), 'load stats quotes'),
-    ]);
-    if (votesRes.error) throw votesRes.error;
-    if (quotesRes.error) throw quotesRes.error;
-
-    const counts = new Map();
-    for (const row of votesRes.data || []) {
-      const item = counts.get(row.quote_id) || { likes: 0, dislikes: 0 };
-      if (row.vote === 'like') item.likes += 1;
-      if (row.vote === 'dislike') item.dislikes += 1;
-      counts.set(row.quote_id, item);
-    }
-
-    const quotes = new Map((quotesRes.data || []).map((quote) => [quote.id, quote]));
-    let topLiked = null;
-    let topDisliked = null;
-
-    for (const [id, stat] of counts.entries()) {
-      if (!quotes.has(id)) continue;
-      if (!topLiked || stat.likes > topLiked.count) topLiked = { id, count: stat.likes };
-      if (!topDisliked || stat.dislikes > topDisliked.count) topDisliked = { id, count: stat.dislikes };
-    }
-    const littleDataText = 'Сейчас мало данных для статистики, зайдите позже';
-
-    if (topLiked && quotes.get(topLiked.id) && topLiked.count > 0) {
-      els.topLikedText.textContent = quotes.get(topLiked.id).text;
-      els.topLikedMeta.textContent = `${topLiked.count} лайков`;
-    } else {
-      els.topLikedText.textContent = littleDataText;
-      els.topLikedMeta.textContent = '—';
-    }
-
-    if (topDisliked && quotes.get(topDisliked.id) && topDisliked.count > 0) {
-      els.topDislikedText.textContent = quotes.get(topDisliked.id).text;
-      els.topDislikedMeta.textContent = `${topDisliked.count} дизлайков`;
-    } else {
-      els.topDislikedText.textContent = littleDataText;
-      els.topDislikedMeta.textContent = '—';
-    }
-
-    setMessage(els.statsMessage, '');
-  } catch (error) {
-    setMessage(els.statsMessage, normalizeError(error), 'error');
+async function shareText() {
+  if (!state.currentQuote) return;
+  const payload = `${state.currentQuote.text}\n\n${buildQuoteLink()}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ text: payload });
+      return;
+    } catch {}
   }
+  await navigator.clipboard.writeText(payload);
+  setStatus(els.globalStatus, 'Текст и ссылка скопированы.', 'success');
 }
 
-function bindModalEvents() {
-  document.querySelectorAll('[data-close]').forEach((el) => {
-    el.addEventListener('click', () => closeModal(document.getElementById(el.dataset.close)));
-  });
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth) {
+      if (current) lines.push(current);
+      current = word;
+    } else current = test;
+  }
+  if (current) lines.push(current);
+  return lines;
+}
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    document.querySelectorAll('.modal').forEach((modal) => {
-      if (!modal.hidden) closeModal(modal);
+async function shareCard() {
+  if (!state.currentQuote) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200; canvas.height = 630;
+  const ctx = canvas.getContext('2d');
+  const dark = document.body.classList.contains('dark');
+  ctx.fillStyle = dark ? '#1a1622' : '#ffffff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = dark ? '#3b3149' : '#eadfed';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(22,22,canvas.width-44,canvas.height-44);
+  ctx.fillStyle = dark ? '#f7f2fa' : '#241f2c';
+  ctx.font = 'bold 42px Spectral';
+  ctx.fillText('Мудрость дня', 80, 100);
+  ctx.font = '36px Spectral';
+  const lines = wrapText(ctx, state.currentQuote.text, 1040);
+  let y = 190;
+  lines.slice(0,8).forEach(line => { ctx.fillText(line, 80, y); y += 54; });
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+  const file = new File([blob], 'mudrost-card.png', { type: 'image/png' });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+    try {
+      await navigator.share({ files: [file] });
+      return;
+    } catch {}
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mudrost-card.png';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus(els.globalStatus, 'Карточка сохранена.', 'success');
+}
+
+function bindModeSelector(containerId, kind) {
+  document.querySelectorAll(`#${containerId} .mode-btn`).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      document.querySelectorAll(`#${containerId} .mode-btn`).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      await saveMode(kind, btn.dataset.mode);
     });
   });
 }
 
-function bindVoteListHandlers(container) {
-  container?.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-vote-list]');
-    if (!button || !state.user) return;
-    const voteType = button.dataset.voteList;
-    const quoteId = button.dataset.quoteId;
-    button.disabled = true;
-    try {
-      const ok = await applyVoteToQuote(quoteId, voteType);
-      if (ok) {
-        await Promise.allSettled([openFavorites(true), openDisliked(true)]);
-      }
-    } finally {
-      button.disabled = false;
-    }
-  });
+function syncModeButtons() {
+  const lm = state.profile?.liked_mode || 'all';
+  const dm = state.profile?.disliked_mode || 'all';
+  document.querySelectorAll('#likedModeSelector .mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === lm));
+  document.querySelectorAll('#dislikedModeSelector .mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === dm));
 }
 
 function bindEvents() {
-  bindModalEvents();
+  els.themeBtn.onclick = () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
+  els.openLoginBtn.onclick = () => openModal('loginModal');
+  els.openRegisterBtn.onclick = () => openModal('registerModal');
+  els.switchToRegisterBtn.onclick = () => { closeModal('loginModal'); openModal('registerModal'); };
+  els.switchToLoginBtn.onclick = () => { closeModal('registerModal'); openModal('loginModal'); };
+  els.userBtn.onclick = async () => { openModal('cabinetModal'); await loadCabinetLists(); syncModeButtons(); };
+  els.settingsBtn.onclick = () => openModal('settingsModal');
+  els.logoutBtn.onclick = localLogout;
+  els.loginSubmitBtn.onclick = login;
+  els.registerSubmitBtn.onclick = register;
+  els.saveSettingsBtn.onclick = saveSettings;
+  els.suggestionSubmitBtn.onclick = sendSuggestion;
+  els.likeBtn.onclick = () => vote('like');
+  els.dislikeBtn.onclick = () => vote('dislike');
+  els.refreshBtn.onclick = loadRandomQuote;
+  els.shareTextBtn.onclick = shareText;
+  els.shareCardBtn.onclick = shareCard;
+  els.statsBtn.onclick = async () => { openModal('statsModal'); await loadStats(); };
+  els.disableTimerCheckbox.onchange = saveSettings;
 
-  els.themeBtn?.addEventListener('click', () => {
-    const nextTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
-    applyTheme(nextTheme);
+  document.querySelectorAll('[data-close]').forEach(btn => btn.onclick = () => closeModal(btn.dataset.close));
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.onclick = () => {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
   });
 
-  els.statsBtn?.addEventListener('click', loadStatsModal);
-
-  els.accountBtn?.addEventListener('click', () => {
-    if (state.user) {
-      updateAuthUI();
-      openModal(els.accountModal);
-    } else {
-      openModal(els.authModal);
-    }
-  });
-
-  els.openRegisterBtn?.addEventListener('click', () => {
-    closeModal(els.authModal);
-    setMessage(els.authMessage, '');
-    openModal(els.registerModal);
-  });
-
-  els.openLoginBtn?.addEventListener('click', () => {
-    closeModal(els.registerModal);
-    setMessage(els.registerMessage, '');
-    openModal(els.authModal);
-  });
-
-  els.settingsBtn?.addEventListener('click', () => {
-    updateAuthUI();
-    openModal(els.settingsModal);
-  });
-
-  els.refreshBtn?.addEventListener('click', loadRandomQuote);
-  els.copyBtn?.addEventListener('click', copyQuote);
-  els.shareBtn?.addEventListener('click', shareQuoteText);
-  els.shareCardBtn?.addEventListener('click', shareQuoteCard);
-  els.likeBtn?.addEventListener('click', () => vote('like'));
-  els.dislikeBtn?.addEventListener('click', () => vote('dislike'));
-
-  els.signInBtn?.addEventListener('click', signIn);
-  els.signUpBtn?.addEventListener('click', signUp);
-  els.signOutBtn?.addEventListener('click', signOutUser);
-  els.openSuggestionBtn?.addEventListener('click', () => openModal(els.suggestionModal));
-  els.openFavoritesBtn?.addEventListener('click', () => openFavorites(false));
-  els.openDislikedBtn?.addEventListener('click', () => openDisliked(false));
-
-  els.likedFilterControl?.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-liked-mode]');
-    if (!button) return;
-    setFilterMode('like', button.dataset.likedMode);
-    syncFilterControls();
-    await Promise.allSettled([openFavorites(true), loadRandomQuote()]);
-  });
-
-  els.dislikedFilterControl?.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-disliked-mode]');
-    if (!button) return;
-    setFilterMode('dislike', button.dataset.dislikedMode);
-    syncFilterControls();
-    await Promise.allSettled([openDisliked(true), loadRandomQuote()]);
-  });
-
-  els.saveSettingsBtn?.addEventListener('click', saveSettings);
-  els.resetAccentBtn?.addEventListener('click', resetAccents);
-  els.suggestionBtn?.addEventListener('click', sendSuggestion);
-
-  bindVoteListHandlers(els.favoritesList);
-  bindVoteListHandlers(els.dislikedList);
-
-  els.authForm?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    signIn();
-  });
-  els.registerForm?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    signUp();
-  });
-  els.settingsForm?.addEventListener('submit', (event) => event.preventDefault());
-  els.suggestionForm?.addEventListener('submit', (event) => event.preventDefault());
+  bindModeSelector('likedModeSelector', 'liked');
+  bindModeSelector('dislikedModeSelector', 'disliked');
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
+    state.session = session;
     state.user = session?.user || null;
-    state.likedIds = null;
-    state.dislikedIds = null;
     if (state.user) {
-      await Promise.allSettled([ensureProfileExists(), loadProfile(), loadUserVote(state.currentQuote?.id)]);
+      await ensureProfile();
+      await loadProfile();
+      await syncVoteState();
     } else {
       state.profile = null;
-      state.currentVote = null;
-      updateAuthUI();
-      updateVoteButtons();
+      state.vote = null;
     }
+    updateAuthUI();
+    renderCurrentQuote();
   });
 }
 
 async function init() {
   initTheme();
-  syncThemeInputs();
-  syncFilterControls();
   bindEvents();
-  startAutoRefreshTicker();
-  restoreCachedQuoteToUI();
-  updateMinuteTimer();
-  await restoreSession();
-  if (state.user) {
-    await Promise.allSettled([ensureProfileExists(), loadProfile()]);
-  } else {
-    updateAuthUI();
-  }
-
-  const quoteFromUrl = new URL(window.location.href).searchParams.get('quote');
-  const loadedById = quoteFromUrl ? await loadQuoteById(quoteFromUrl) : false;
-  if (!loadedById) await loadRandomQuote();
+  await initSession();
+  await loadQuoteFromUrlOrRandom();
+  updateAuthUI();
 }
 
-window.addEventListener('unhandledrejection', (event) => {
-  console.warn('Unhandled rejection:', event.reason);
-});
-
-document.addEventListener('DOMContentLoaded', init);
+init();
