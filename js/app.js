@@ -177,6 +177,15 @@ function setClickRefreshEnabled(value) {
   localStorage.setItem(CLICK_REFRESH_KEY, value ? 'true' : 'false');
   if (state.profile) state.profile.click_refresh_enabled = !!value;
   els.quoteCard?.classList.toggle('click-refresh-enabled', !!value);
+  if (els.clickRefreshInput) els.clickRefreshInput.checked = !!value;
+}
+
+function handleQuoteCardRefresh(event) {
+  if (!isClickRefreshEnabled()) return;
+  const interactive = event.target.closest('button, a, input, textarea, label, select');
+  if (interactive) return;
+  event.preventDefault();
+  loadRandomQuote();
 }
 
 function getAuthRedirectUrl() {
@@ -1363,12 +1372,9 @@ function bindEvents() {
 
   els.statsBtn?.addEventListener('click', loadStatsModal);
 
-  els.quoteCard?.addEventListener('click', (event) => {
-    if (!isClickRefreshEnabled()) return;
-    const interactive = event.target.closest('button, a, input, textarea, label, select');
-    if (interactive) return;
-    loadRandomQuote();
-  });
+  els.quoteCard?.addEventListener('click', handleQuoteCardRefresh);
+  els.quoteCard?.addEventListener('touchend', handleQuoteCardRefresh, { passive: false });
+
 
   els.accountBtn?.addEventListener('click', () => {
     if (state.user) {
@@ -1433,6 +1439,10 @@ function bindEvents() {
     setFilterMode('dislike', button.dataset.dislikedMode);
     syncFilterControls();
     await Promise.allSettled([openDisliked(true), loadRandomQuote()]);
+  });
+
+  els.clickRefreshInput?.addEventListener('change', () => {
+    setClickRefreshEnabled(!!els.clickRefreshInput?.checked);
   });
 
   els.saveSettingsBtn?.addEventListener('click', saveSettings);
