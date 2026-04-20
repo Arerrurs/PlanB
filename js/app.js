@@ -35,6 +35,10 @@ const state = {
   autoRefreshBusy: false,
   likedIds: null,
   dislikedIds: null,
+  chatUsers: [],
+  activeConversationId: null,
+  activeChatPeer: null,
+  chatPollTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -95,8 +99,21 @@ const els = {
   openSuggestionBtn: $('openSuggestionBtn'),
   openFavoritesBtn: $('openFavoritesBtn'),
   openDislikedBtn: $('openDislikedBtn'),
+  openChatBtn: $('openChatBtn'),
   likedFilterControl: $('likedFilterControl'),
   dislikedFilterControl: $('dislikedFilterControl'),
+
+  chatModal: $('chatModal'),
+  chatUserSearch: $('chatUserSearch'),
+  chatUserList: $('chatUserList'),
+  chatEmptyState: $('chatEmptyState'),
+  chatThread: $('chatThread'),
+  chatConversationTitle: $('chatConversationTitle'),
+  chatMessages: $('chatMessages'),
+  chatForm: $('chatForm'),
+  chatMessageInput: $('chatMessageInput'),
+  chatSendBtn: $('chatSendBtn'),
+  chatMessageStatus: $('chatMessageStatus'),
 
   settingsForm: $('settingsForm'),
   settingsEmailStatic: $('settingsEmailStatic'),
@@ -222,6 +239,27 @@ function isValidUsername(value) {
   return /^[a-z0-9._-]{3,24}$/.test(normalizeUsername(value));
 }
 
+function maskEmail(email) {
+  const raw = String(email || '').trim();
+  if (!raw || !raw.includes('@')) return raw || 'Без почты';
+  const [name, domain] = raw.split('@');
+  const safe = name.length <= 2 ? `${name[0] || ''}*` : `${name.slice(0,2)}***`;
+  return `${safe}@${domain}`;
+}
+
+function getProfileLabel(profile) {
+  if (!profile) return 'Неизвестный пользователь';
+  return profile.username || maskEmail(profile.email) || 'Пользователь';
+}
+
+function formatDateTime(value) {
+  try {
+    return new Date(value).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
 async function resolveLoginEmail(identifier) {
   const raw = String(identifier || '').trim();
   if (!raw) return null;
@@ -275,6 +313,7 @@ function openModal(el) {
 function closeModal(el) {
   if (!el) return;
   el.hidden = true;
+  if (el === els.chatModal) stopChatPolling();
   if ([...document.querySelectorAll('.modal')].every((modal) => modal.hidden)) {
     document.body.style.overflow = '';
   }
@@ -1200,13 +1239,185 @@ async function sendSuggestion() {
   }
 }
 
+async function persistQuickPreference(field, value) {
+  if (!state.user) return;
+  try {
+    const { error } = await withTimeout(
+      supabase.from('profiles').update({ [field]: value }).eq('id', state.user.id),
+      `update ${field}`
+    );
+    if (error) throw error;
+    if (!state.profile) state.profile = {};
+    state.profile[field] = value;
+  } catch (error) {
+    setMessage(els.globalMessage, normalizeError(error), 'error');
+    throw error;
+  }
+}
+
+async function toggleTimerPreference() {
+  const nextValue = !!els.disableTimerInput?.checked;
+  setTimerDisabled(nextValue);
+  updateMinuteTimer();
+  try {
+    await persistQuickPreference('disable_timer', nextValue);
+    setMessage(els.globalMessage, 'Настройка таймера сохранена.', 'success');
+  } catch {
+    setTimerDisabled(!nextValue);
+    if (els.disableTimerInput) els.disableTimerInput.checked = !nextValue;
+    updateMinuteTimer();
+  }
+}
+
+async function toggleClickRefreshPreference() {
+  const nextValue = !!els.clickRefreshInput?.checked;
+  setClickRefreshEnabled(nextValue);
+  try {
+    await persistQuickPreference('click_refresh_enabled', nextValue);
+    setMessage(els.globalMessage, 'Настройка карточки сохранена.', 'success');
+  } catch {
+    setClickRefreshEnabled(!nextValue);
+  }
+}
+
+async function loadChatUsers(force = false) {
+  if (!state.user) return [];
+  if (state.chatUsers.length && !force) return state.chatUsers;
+  const { data, error } = await withTimeout(supabase.rpc('list_chat_users'), 'list chat users');
+  if (error) throw error;
+  state.chatUsers = data || [];
+  return state.chatUsers;
+}
+
+function renderChatUsers() {
+  if (!els.chatUserList) return;
+  const query = (els.chatUserSearch?.value || '').trim().toLowerCase();
+  const items = (state.chatUsers || []).filter((item) => {
+    const label = `${item.username || ''} ${item.email || ''}`.toLowerCase();
+    return !query || label.includes(query);
+  });
+  if (!items.length) {
+    els.chatUserList.innerHTML = '<div class="settings-note">Пока нет пользователей для чата.</div>';
+    return;
+  }
+  els.chatUserList.innerHTML = items.map((item) => `
+    <button class="chat-user-item ${state.activeChatPeer?.id === item.id ? 'active' : ''}" type="button" data-chat-user-id="${item.id}">
+      <span class="chat-user-name">${escapeHtml(item.username || maskEmail(item.email))}</span>
+      <span class="chat-user-meta">${escapeHtml(item.username ? maskEmail(item.email) : 'Без логина')}</span>
+    </button>
+  `).join('');
+}
+
+async function openChatModal() {
+  if (!state.user) {
+    setMessage(els.globalMessage, 'Сначала зарегистрируйтесь или войдите.', 'info');
+    openModal(els.authModal);
+    return;
+  }
+  openModal(els.chatModal);
+  setMessage(els.chatMessageStatus, 'Загружаем пользователей...');
+  try {
+    await loadChatUsers();
+    renderChatUsers();
+    setMessage(els.chatMessageStatus, '');
+  } catch (error) {
+    setMessage(els.chatMessageStatus, normalizeError(error), 'error');
+  }
+  startChatPolling();
+}
+
+function stopChatPolling() {
+  if (state.chatPollTimer) {
+    clearInterval(state.chatPollTimer);
+    state.chatPollTimer = null;
+  }
+}
+
+function startChatPolling() {
+  stopChatPolling();
+  state.chatPollTimer = setInterval(async () => {
+    if (els.chatModal?.hidden || !state.activeConversationId) return;
+    await loadActiveChatMessages(true);
+  }, 5000);
+}
+
+async function selectChatUser(userId) {
+  const peer = state.chatUsers.find((item) => item.id === userId);
+  if (!peer) return;
+  state.activeChatPeer = peer;
+  renderChatUsers();
+  setMessage(els.chatMessageStatus, 'Открываем диалог...');
+  const { data, error } = await withTimeout(
+    supabase.rpc('get_or_create_direct_conversation', { p_other_user: userId }),
+    'open chat conversation'
+  );
+  if (error) {
+    setMessage(els.chatMessageStatus, normalizeError(error), 'error');
+    return;
+  }
+  state.activeConversationId = data;
+  els.chatConversationTitle.textContent = getProfileLabel(peer);
+  els.chatEmptyState.hidden = true;
+  els.chatThread.hidden = false;
+  await loadActiveChatMessages();
+}
+
+async function loadActiveChatMessages(silent = false) {
+  if (!state.activeConversationId) return;
+  if (!silent) setMessage(els.chatMessageStatus, 'Загружаем сообщения...');
+  const { data, error } = await withTimeout(
+    supabase.rpc('list_conversation_messages', { p_conversation_id: state.activeConversationId }),
+    'load conversation messages'
+  );
+  if (error) {
+    setMessage(els.chatMessageStatus, normalizeError(error), 'error');
+    return;
+  }
+  const messages = data || [];
+  if (!messages.length) {
+    els.chatMessages.innerHTML = '<div class="settings-note">Пока нет сообщений. Напишите первым.</div>';
+  } else {
+    els.chatMessages.innerHTML = messages.map((item) => `
+      <article class="chat-bubble ${item.sender_id === state.user?.id ? 'mine' : ''}">
+        <div class="chat-bubble__author">${escapeHtml(item.sender_name || 'Пользователь')}</div>
+        <div class="chat-bubble__text">${escapeHtml(item.text)}</div>
+        <div class="chat-bubble__meta">${formatDateTime(item.created_at)}</div>
+      </article>
+    `).join('');
+    els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+  }
+  setMessage(els.chatMessageStatus, '');
+}
+
+async function sendChatMessage() {
+  const text = els.chatMessageInput?.value.trim();
+  if (!state.activeConversationId) return setMessage(els.chatMessageStatus, 'Сначала выберите пользователя.', 'error');
+  if (!text) return;
+  els.chatSendBtn.disabled = true;
+  setMessage(els.chatMessageStatus, 'Отправляем...');
+  try {
+    const { error } = await withTimeout(
+      supabase.rpc('send_chat_message', { p_conversation_id: state.activeConversationId, p_text: text }),
+      'send chat message'
+    );
+    if (error) throw error;
+    els.chatMessageInput.value = '';
+    await loadActiveChatMessages(true);
+    setMessage(els.chatMessageStatus, '');
+  } catch (error) {
+    setMessage(els.chatMessageStatus, normalizeError(error), 'error');
+  } finally {
+    els.chatSendBtn.disabled = false;
+  }
+}
+
 async function saveSettings() {
   if (!state.user) return;
   const nextPassword = els.settingsPassword?.value.trim();
   const nextUsername = normalizeUsername(els.settingsUsername?.value);
   const nextEmail = els.settingsEmailInput?.value.trim().toLowerCase();
-  const disableTimer = !!els.disableTimerInput?.checked;
-  const clickRefreshEnabled = !!els.clickRefreshInput?.checked;
+  const disableTimer = isTimerDisabled();
+  const clickRefreshEnabled = isClickRefreshEnabled();
   const lightAccent = els.lightAccentInput?.value || DEFAULT_LIGHT_ACCENT;
   const darkAccent = els.darkAccentInput?.value || DEFAULT_DARK_ACCENT;
 
@@ -1424,6 +1635,7 @@ function bindEvents() {
   els.openSuggestionBtn?.addEventListener('click', () => openModal(els.suggestionModal));
   els.openFavoritesBtn?.addEventListener('click', () => openFavorites(false));
   els.openDislikedBtn?.addEventListener('click', () => openDisliked(false));
+  els.openChatBtn?.addEventListener('click', openChatModal);
 
   els.likedFilterControl?.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-liked-mode]');
@@ -1441,9 +1653,15 @@ function bindEvents() {
     await Promise.allSettled([openDisliked(true), loadRandomQuote()]);
   });
 
-  els.clickRefreshInput?.addEventListener('change', () => {
-    setClickRefreshEnabled(!!els.clickRefreshInput?.checked);
+  els.disableTimerInput?.addEventListener('change', toggleTimerPreference);
+  els.clickRefreshInput?.addEventListener('change', toggleClickRefreshPreference);
+  els.chatUserSearch?.addEventListener('input', renderChatUsers);
+  els.chatUserList?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-chat-user-id]');
+    if (!button) return;
+    selectChatUser(button.dataset.chatUserId);
   });
+  els.chatSendBtn?.addEventListener('click', sendChatMessage);
 
   els.saveSettingsBtn?.addEventListener('click', saveSettings);
   els.resetAccentBtn?.addEventListener('click', resetAccents);
@@ -1464,6 +1682,7 @@ function bindEvents() {
   els.suggestionForm?.addEventListener('submit', (event) => event.preventDefault());
   els.recoveryForm?.addEventListener('submit', (event) => { event.preventDefault(); sendRecoveryEmail(); });
   els.resetPasswordForm?.addEventListener('submit', (event) => { event.preventDefault(); saveRecoveredPassword(); });
+  els.chatForm?.addEventListener('submit', (event) => { event.preventDefault(); sendChatMessage(); });
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
     if (isSigningOut) return;

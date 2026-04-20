@@ -147,9 +147,21 @@
           <button id="openFavoritesBtn" class="text-btn" type="button">Любимые цитаты</button>
           <button id="openDislikedBtn" class="text-btn" type="button">Не любимые цитаты</button>
           <button id="openSuggestionBtn" class="text-btn primary" type="button">Предложить цитату</button>
+          <button id="openChatBtn" class="text-btn" type="button">Чат</button>
           <a id="adminLink" class="text-btn ghost hidden-link" href="./admin.html">Админка</a>
           <button id="signOutBtn" class="text-btn danger" type="button">Выйти</button>
         </div>
+
+        <section class="settings-section settings-section--compact settings-section--account-toggles">
+          <label class="setting-row setting-row--switch">
+            <span>Не использовать таймер</span>
+            <input id="disableTimerInput" class="switch-input" type="checkbox" />
+          </label>
+          <label class="setting-row setting-row--switch">
+            <span>Обновлять карточку по нажатию</span>
+            <input id="clickRefreshInput" class="switch-input" type="checkbox" />
+          </label>
+        </section>
       </div>
     </div>
   </div>
@@ -208,17 +220,6 @@
             <button id="saveSettingsBtn" class="text-btn primary" type="button">Сохранить</button>
             <button id="resetAccentBtn" class="text-btn" type="button">Сбросить цвета</button>
           </div>
-
-          <section class="settings-section settings-section--compact">
-            <label class="setting-row">
-              <span>Не использовать таймер</span>
-              <input id="disableTimerInput" type="checkbox" />
-            </label>
-            <label class="setting-row">
-              <span>Обновлять карточку по нажатию</span>
-              <input id="clickRefreshInput" type="checkbox" />
-            </label>
-          </section>
 
           <div id="settingsMessage" class="message" aria-live="polite"></div>
         </form>
@@ -297,7 +298,42 @@
     </div>
   </div>
 
-  <div id="statsModal" class="modal" hidden>
+    <div id="chatModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="chatModal"></div>
+    <div class="modal-dialog chat-dialog">
+      <div class="modal-header">
+        <h2>Чат</h2>
+        <button class="icon-btn" type="button" data-close="chatModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body chat-layout">
+        <aside class="chat-sidebar">
+          <label class="field chat-search-field">
+            <span>Кому написать</span>
+            <input id="chatUserSearch" type="text" placeholder="Логин или почта" />
+          </label>
+          <div id="chatUserList" class="chat-user-list"></div>
+        </aside>
+        <section class="chat-pane">
+          <div id="chatEmptyState" class="settings-note">Выберите пользователя, чтобы открыть диалог.</div>
+          <div id="chatThread" class="chat-thread" hidden>
+            <div class="chat-thread-head">
+              <strong id="chatConversationTitle">—</strong>
+            </div>
+            <div id="chatMessages" class="chat-messages"></div>
+            <form id="chatForm" class="chat-form">
+              <textarea id="chatMessageInput" rows="2" placeholder="Напишите сообщение..."></textarea>
+              <button id="chatSendBtn" class="text-btn primary" type="button">Отправить</button>
+            </form>
+          </div>
+          <div id="chatMessageStatus" class="message" aria-live="polite"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+<div id="statsModal" class="modal" hidden>
     <div class="modal-backdrop" data-close="statsModal"></div>
     <div class="modal-dialog">
       <div class="modal-header">
