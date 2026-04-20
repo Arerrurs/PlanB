@@ -20,6 +20,7 @@ const DARK_ACCENT_KEY = 'mudrost-dark-accent';
 const LIKED_FILTER_MODE_KEY = 'mudrost-liked-filter-mode';
 const DISLIKED_FILTER_MODE_KEY = 'mudrost-disliked-filter-mode';
 const TIMER_DISABLED_KEY = 'mudrost-disable-timer';
+const CLICK_REFRESH_KEY = 'mudrost-click-refresh';
 const USERNAME_CACHE_KEY = 'mudrost-profile-username';
 const DEFAULT_LIGHT_ACCENT = '#a855f7';
 const DEFAULT_DARK_ACCENT = '#f472b6';
@@ -39,6 +40,7 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 const els = {
+  quoteCard: $('quoteCard'),
   quoteText: $('quoteText'),
   quoteId: $('quoteId'),
   globalMessage: $('globalMessage'),
@@ -60,6 +62,8 @@ const els = {
   favoritesModal: $('favoritesModal'),
   dislikedModal: $('dislikedModal'),
   statsModal: $('statsModal'),
+  recoveryModal: $('recoveryModal'),
+  resetPasswordModal: $('resetPasswordModal'),
 
   authForm: $('authForm'),
   registerForm: $('registerForm'),
@@ -73,8 +77,17 @@ const els = {
   signOutBtn: $('signOutBtn'),
   openRegisterBtn: $('openRegisterBtn'),
   openLoginBtn: $('openLoginBtn'),
+  openRecoveryBtn: $('openRecoveryBtn'),
   authMessage: $('authMessage'),
   registerMessage: $('registerMessage'),
+  recoveryForm: $('recoveryForm'),
+  recoveryIdentifier: $('recoveryIdentifier'),
+  recoveryBtn: $('recoveryBtn'),
+  recoveryMessage: $('recoveryMessage'),
+  resetPasswordForm: $('resetPasswordForm'),
+  resetPasswordInput: $('resetPasswordInput'),
+  resetPasswordBtn: $('resetPasswordBtn'),
+  resetPasswordMessage: $('resetPasswordMessage'),
 
   userEmail: $('userEmail'),
   settingsBtn: $('settingsBtn'),
@@ -91,6 +104,7 @@ const els = {
   settingsUsername: $('settingsUsername'),
   settingsPassword: $('settingsPassword'),
   disableTimerInput: $('disableTimerInput'),
+  clickRefreshInput: $('clickRefreshInput'),
   lightAccentInput: $('lightAccentInput'),
   darkAccentInput: $('darkAccentInput'),
   saveSettingsBtn: $('saveSettingsBtn'),
@@ -151,6 +165,35 @@ function isTimerDisabled() {
 function setTimerDisabled(value) {
   localStorage.setItem(TIMER_DISABLED_KEY, value ? 'true' : 'false');
   if (state.profile) state.profile.disable_timer = !!value;
+}
+
+function isClickRefreshEnabled() {
+  const local = localStorage.getItem(CLICK_REFRESH_KEY);
+  if (local === 'true' || local === 'false') return local === 'true';
+  return !!state.profile?.click_refresh_enabled;
+}
+
+function setClickRefreshEnabled(value) {
+  localStorage.setItem(CLICK_REFRESH_KEY, value ? 'true' : 'false');
+  if (state.profile) state.profile.click_refresh_enabled = !!value;
+  els.quoteCard?.classList.toggle('click-refresh-enabled', !!value);
+}
+
+function getAuthRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+function getIncomingAuthType() {
+  try {
+    const url = new URL(window.location.href);
+    const queryType = url.searchParams.get('type');
+    if (queryType) return queryType;
+    if (window.location.hash.startsWith('#')) {
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      return hash.get('type') || '';
+    }
+  } catch {}
+  return '';
 }
 
 function escapeHtml(str) {
@@ -449,6 +492,8 @@ function updateAuthUI() {
   if (els.settingsEmailInput) els.settingsEmailInput.value = '';
   if (els.settingsUsername) els.settingsUsername.value = getDisplayUsername() || '';
   if (els.disableTimerInput) els.disableTimerInput.checked = isTimerDisabled();
+  if (els.clickRefreshInput) els.clickRefreshInput.checked = isClickRefreshEnabled();
+  els.quoteCard?.classList.toggle('click-refresh-enabled', isClickRefreshEnabled());
   syncThemeInputs();
   updateMinuteTimer();
   syncFilterControls();
@@ -482,7 +527,7 @@ async function loadProfile() {
   }
 
   const { data, error } = await withTimeout(
-    supabase.from('profiles').select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent,disable_timer').eq('id', state.user.id).maybeSingle(),
+    supabase.from('profiles').select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent,disable_timer,click_refresh_enabled').eq('id', state.user.id).maybeSingle(),
     'load profile'
   );
   if (error) throw error;
@@ -492,6 +537,7 @@ async function loadProfile() {
   if (state.profile?.light_accent) localStorage.setItem(LIGHT_ACCENT_KEY, state.profile.light_accent);
   if (state.profile?.dark_accent) localStorage.setItem(DARK_ACCENT_KEY, state.profile.dark_accent);
   if (typeof state.profile?.disable_timer === 'boolean') localStorage.setItem(TIMER_DISABLED_KEY, state.profile.disable_timer ? 'true' : 'false');
+  if (typeof state.profile?.click_refresh_enabled === 'boolean') localStorage.setItem(CLICK_REFRESH_KEY, state.profile.click_refresh_enabled ? 'true' : 'false');
   setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
   updateAuthUI();
 }
@@ -799,6 +845,57 @@ async function persistUsername(username) {
   cacheUsername(clean);
 }
 
+async function sendRecoveryEmail() {
+  const identifier = els.recoveryIdentifier?.value.trim();
+  if (!identifier) return setMessage(els.recoveryMessage, 'Введите почту или логин.', 'error');
+
+  els.recoveryBtn.disabled = true;
+  setMessage(els.recoveryMessage, 'Отправляем письмо...');
+  try {
+    const email = await resolveLoginEmail(identifier);
+    if (!email) throw new Error('Пользователь не найден.');
+    const { error } = await withTimeout(
+      supabase.auth.resetPasswordForEmail(email, { redirectTo: getAuthRedirectUrl() }),
+      'reset password email',
+      AUTH_TIMEOUT_MS
+    );
+    if (error) throw error;
+    setMessage(els.recoveryMessage, 'Письмо для восстановления отправлено.', 'success');
+  } catch (error) {
+    setMessage(els.recoveryMessage, normalizeError(error), 'error');
+  } finally {
+    els.recoveryBtn.disabled = false;
+  }
+}
+
+async function saveRecoveredPassword() {
+  const password = els.resetPasswordInput?.value || '';
+  if (!password.trim()) return setMessage(els.resetPasswordMessage, 'Введите новый пароль.', 'error');
+
+  els.resetPasswordBtn.disabled = true;
+  setMessage(els.resetPasswordMessage, 'Сохраняем пароль...');
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.updateUser({ password }),
+      'save recovered password',
+      AUTH_TIMEOUT_MS
+    );
+    if (error) throw error;
+    if (data?.user) state.user = data.user;
+    setMessage(els.resetPasswordMessage, 'Пароль обновлён. Теперь можно войти.', 'success');
+    els.resetPasswordForm?.reset();
+    setTimeout(() => {
+      closeModal(els.resetPasswordModal);
+      openModal(els.authModal);
+      cleanupUrlParams();
+    }, 700);
+  } catch (error) {
+    setMessage(els.resetPasswordMessage, normalizeError(error), 'error');
+  } finally {
+    els.resetPasswordBtn.disabled = false;
+  }
+}
+
 async function signIn() {
   const identifier = els.identifier?.value.trim();
   const password = els.password?.value.trim();
@@ -1100,6 +1197,7 @@ async function saveSettings() {
   const nextUsername = normalizeUsername(els.settingsUsername?.value);
   const nextEmail = els.settingsEmailInput?.value.trim().toLowerCase();
   const disableTimer = !!els.disableTimerInput?.checked;
+  const clickRefreshEnabled = !!els.clickRefreshInput?.checked;
   const lightAccent = els.lightAccentInput?.value || DEFAULT_LIGHT_ACCENT;
   const darkAccent = els.darkAccentInput?.value || DEFAULT_DARK_ACCENT;
 
@@ -1120,13 +1218,14 @@ async function saveSettings() {
     }
 
     if (nextEmail && nextEmail !== (state.user?.email || '').toLowerCase()) {
-      const { error: emailError } = await withTimeout(supabase.auth.updateUser({ email: nextEmail }), 'update email', AUTH_TIMEOUT_MS);
+      const { error: emailError } = await withTimeout(supabase.auth.updateUser({ email: nextEmail }, { emailRedirectTo: getAuthRedirectUrl() }), 'update email', AUTH_TIMEOUT_MS);
       if (emailError) throw emailError;
     }
 
     localStorage.setItem(LIGHT_ACCENT_KEY, lightAccent);
     localStorage.setItem(DARK_ACCENT_KEY, darkAccent);
     setTimerDisabled(disableTimer);
+    setClickRefreshEnabled(clickRefreshEnabled);
 
     const profileUpdate = {
       email: state.user?.email || state.profile?.email || null,
@@ -1134,6 +1233,7 @@ async function saveSettings() {
       light_accent: lightAccent,
       dark_accent: darkAccent,
       disable_timer: disableTimer,
+      click_refresh_enabled: clickRefreshEnabled,
     };
 
     const { error: profileError } = await withTimeout(
@@ -1263,6 +1363,13 @@ function bindEvents() {
 
   els.statsBtn?.addEventListener('click', loadStatsModal);
 
+  els.quoteCard?.addEventListener('click', (event) => {
+    if (!isClickRefreshEnabled()) return;
+    const interactive = event.target.closest('button, a, input, textarea, label, select');
+    if (interactive) return;
+    loadRandomQuote();
+  });
+
   els.accountBtn?.addEventListener('click', () => {
     if (state.user) {
       updateAuthUI();
@@ -1284,6 +1391,13 @@ function bindEvents() {
     openModal(els.authModal);
   });
 
+  els.openRecoveryBtn?.addEventListener('click', () => {
+    closeModal(els.authModal);
+    setMessage(els.authMessage, '');
+    setMessage(els.recoveryMessage, '');
+    openModal(els.recoveryModal);
+  });
+
   els.settingsBtn?.addEventListener('click', () => {
     updateAuthUI();
     openModal(els.settingsModal);
@@ -1298,6 +1412,8 @@ function bindEvents() {
 
   els.signInBtn?.addEventListener('click', signIn);
   els.signUpBtn?.addEventListener('click', signUp);
+  els.recoveryBtn?.addEventListener('click', sendRecoveryEmail);
+  els.resetPasswordBtn?.addEventListener('click', saveRecoveredPassword);
   els.signOutBtn?.addEventListener('click', signOutUser);
   els.openSuggestionBtn?.addEventListener('click', () => openModal(els.suggestionModal));
   els.openFavoritesBtn?.addEventListener('click', () => openFavorites(false));
@@ -1336,6 +1452,8 @@ function bindEvents() {
   });
   els.settingsForm?.addEventListener('submit', (event) => event.preventDefault());
   els.suggestionForm?.addEventListener('submit', (event) => event.preventDefault());
+  els.recoveryForm?.addEventListener('submit', (event) => { event.preventDefault(); sendRecoveryEmail(); });
+  els.resetPasswordForm?.addEventListener('submit', (event) => { event.preventDefault(); saveRecoveredPassword(); });
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
     if (isSigningOut) return;
@@ -1354,7 +1472,7 @@ function bindEvents() {
 }
 
 async function init() {
-  cleanupUrlParams();
+  const incomingAuthType = getIncomingAuthType();
   initTheme();
   syncThemeInputs();
   syncFilterControls();
@@ -1363,6 +1481,7 @@ async function init() {
   restoreCachedQuoteToUI();
   updateMinuteTimer();
   await restoreSession();
+  cleanupUrlParams();
   if (state.user) {
     await Promise.allSettled([ensureProfileExists(), loadProfile()]);
   } else {
@@ -1372,6 +1491,11 @@ async function init() {
   const quoteFromUrl = new URL(window.location.href).searchParams.get('quote');
   const loadedById = quoteFromUrl ? await loadQuoteById(quoteFromUrl) : false;
   if (!loadedById) await loadRandomQuote();
+
+  if (incomingAuthType === 'recovery' && state.user) {
+    setMessage(els.resetPasswordMessage, '');
+    openModal(els.resetPasswordModal);
+  }
 }
 
 window.addEventListener('unhandledrejection', (event) => {

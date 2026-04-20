@@ -13,7 +13,7 @@
 </head>
 <body>
   <main class="page">
-    <section class="quote-card">
+    <section id="quoteCard" class="quote-card">
       <header class="topbar">
         <button id="statsBtn" class="brand-mark brand-button" type="button" aria-label="Открыть статистику" title="Статистика">
           <span class="material-symbols-outlined">auto_stories</span>
@@ -86,6 +86,7 @@
             <button id="signInBtn" class="text-btn primary" type="button">Войти</button>
           </div>
           <button id="openRegisterBtn" class="text-btn ghost text-btn--link" type="button">Нет аккаунта? Зарегистрироваться</button>
+          <button id="openRecoveryBtn" class="text-btn ghost text-btn--link" type="button">Забыли пароль?</button>
           <div id="authMessage" class="message" aria-live="polite"></div>
         </form>
       </div>
@@ -213,6 +214,10 @@
               <span>Не использовать таймер</span>
               <input id="disableTimerInput" type="checkbox" />
             </label>
+            <label class="setting-row">
+              <span>Обновлять карточку по нажатию</span>
+              <input id="clickRefreshInput" type="checkbox" />
+            </label>
           </section>
 
           <div id="settingsMessage" class="message" aria-live="polite"></div>
@@ -321,6 +326,55 @@
             <div id="topDislikedMeta" class="mini-stat-meta">—</div>
           </article>
         </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="recoveryModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="recoveryModal"></div>
+    <div class="modal-dialog slim">
+      <div class="modal-header">
+        <h2>Восстановление пароля</h2>
+        <button class="icon-btn" type="button" data-close="recoveryModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="recoveryForm" class="stack-form">
+          <label class="field">
+            <span>Почта или логин</span>
+            <input id="recoveryIdentifier" type="text" autocomplete="username" placeholder="mail@example.com или login" />
+          </label>
+          <div class="row-actions single">
+            <button id="recoveryBtn" class="text-btn primary" type="button">Отправить письмо</button>
+          </div>
+          <div id="recoveryMessage" class="message" aria-live="polite"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="resetPasswordModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="resetPasswordModal"></div>
+    <div class="modal-dialog slim">
+      <div class="modal-header">
+        <h2>Новый пароль</h2>
+        <button class="icon-btn" type="button" data-close="resetPasswordModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="resetPasswordForm" class="stack-form">
+          <label class="field">
+            <span>Новый пароль</span>
+            <input id="resetPasswordInput" type="password" autocomplete="new-password" placeholder="••••••••" />
+          </label>
+          <div class="row-actions single">
+            <button id="resetPasswordBtn" class="text-btn primary" type="button">Сохранить пароль</button>
+          </div>
+          <div id="resetPasswordMessage" class="message" aria-live="polite"></div>
+        </form>
       </div>
     </div>
   </div>
