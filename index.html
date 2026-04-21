@@ -147,7 +147,7 @@
           <button id="openFavoritesBtn" class="text-btn" type="button">Любимые цитаты</button>
           <button id="openDislikedBtn" class="text-btn" type="button">Не любимые цитаты</button>
           <button id="openSuggestionBtn" class="text-btn primary" type="button">Предложить цитату</button>
-          <button id="openChatBtn" class="text-btn" type="button">Чат</button>
+          <button id="openChatBtn" class="text-btn text-btn--chat" type="button">Чат <span id="chatButtonBadge" class="chat-badge" hidden>0</span></button>
           <a id="adminLink" class="text-btn ghost hidden-link" href="./admin.html">Админка</a>
           <button id="signOutBtn" class="text-btn danger" type="button">Выйти</button>
         </div>
@@ -309,17 +309,30 @@
       </div>
       <div class="modal-body chat-layout">
         <aside class="chat-sidebar">
+          <div id="chatTabs" class="segmented-control chat-tabs" role="tablist" aria-label="Разделы чата">
+            <button class="segment-btn active" type="button" id="chatTabContacts" data-chat-tab="contacts">Контакты</button>
+            <button class="segment-btn" type="button" id="chatTabRequests" data-chat-tab="requests">Запросы <span id="chatRequestsBadge" class="chat-badge inline" hidden>0</span></button>
+            <button class="segment-btn" type="button" id="chatTabUsers" data-chat-tab="users">Поиск</button>
+          </div>
           <label class="field chat-search-field">
-            <span>Кому написать</span>
-            <input id="chatUserSearch" type="text" placeholder="Логин или почта" />
+            <span id="chatSearchLabel">Контакты</span>
+            <input id="chatUserSearch" type="text" placeholder="Почта, логин или имя контакта" />
           </label>
           <div id="chatUserList" class="chat-user-list"></div>
         </aside>
         <section class="chat-pane">
-          <div id="chatEmptyState" class="settings-note">Выберите пользователя, чтобы открыть диалог.</div>
+          <div id="chatEmptyState" class="settings-note">Выберите контакт или найдите пользователя.</div>
+          <div id="chatRequestPanel" class="chat-request-panel" hidden></div>
           <div id="chatThread" class="chat-thread" hidden>
             <div class="chat-thread-head">
-              <strong id="chatConversationTitle">—</strong>
+              <div class="chat-thread-title-wrap">
+                <strong id="chatConversationTitle">—</strong>
+                <div id="chatThreadMeta" class="chat-thread-meta"></div>
+              </div>
+              <div id="chatAliasRow" class="chat-alias-row" hidden>
+                <input id="chatAliasInput" type="text" placeholder="Моё имя для контакта" />
+                <button id="saveChatAliasBtn" class="text-btn" type="button">Сохранить имя</button>
+              </div>
             </div>
             <div id="chatMessages" class="chat-messages"></div>
             <form id="chatForm" class="chat-form">
