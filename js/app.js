@@ -21,6 +21,7 @@ const LIKED_FILTER_MODE_KEY = 'mudrost-liked-filter-mode';
 const DISLIKED_FILTER_MODE_KEY = 'mudrost-disliked-filter-mode';
 const TIMER_DISABLED_KEY = 'mudrost-disable-timer';
 const CLICK_REFRESH_KEY = 'mudrost-click-refresh';
+const PRIVACY_MODE_KEY = 'mudrost-privacy-mode';
 const USERNAME_CACHE_KEY = 'mudrost-profile-username';
 const CHAT_ALIAS_CACHE_KEY = 'mudrost-chat-alias-cache';
 const DEFAULT_LIGHT_ACCENT = '#a855f7';
@@ -34,6 +35,8 @@ const state = {
   currentVote: null,
   autoRefreshAt: Date.now() + AUTO_REFRESH_MS,
   autoRefreshBusy: false,
+  privacyBlurred: false,
+  privacyDeadline: Date.now() + AUTO_REFRESH_MS,
   likedIds: null,
   dislikedIds: null,
   chatUsers: [],
@@ -146,6 +149,7 @@ const els = {
   settingsPassword: $('settingsPassword'),
   disableTimerInput: $('disableTimerInput'),
   clickRefreshInput: $('clickRefreshInput'),
+  privacyModeInput: $('privacyModeInput'),
   lightAccentInput: $('lightAccentInput'),
   darkAccentInput: $('darkAccentInput'),
   saveSettingsBtn: $('saveSettingsBtn'),
@@ -193,6 +197,22 @@ function showToast(text, type = 'info') {
   window.setTimeout(() => node.remove(), 3200);
 }
 
+
+function maybeRequestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+}
+
+function sendBrowserNotification(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const note = new Notification(title, { body, icon: './favicon.svg', badge: './favicon.svg' });
+    window.setTimeout(() => note.close(), 5000);
+  } catch {}
+}
+
 function normalizeError(error) {
   const msg = String(error?.message || error || '').toLowerCase();
   if (msg.includes('invalid login credentials')) return 'Неверные почта, логин или пароль.';
@@ -230,10 +250,48 @@ function setClickRefreshEnabled(value) {
   if (els.clickRefreshInput) els.clickRefreshInput.checked = !!value;
 }
 
+function isPrivacyModeEnabled() {
+  const local = localStorage.getItem(PRIVACY_MODE_KEY);
+  if (local === 'true' || local === 'false') return local === 'true';
+  return !!state.profile?.privacy_mode_enabled;
+}
+
+function setPrivacyModeEnabled(value) {
+  localStorage.setItem(PRIVACY_MODE_KEY, value ? 'true' : 'false');
+  if (state.profile) state.profile.privacy_mode_enabled = !!value;
+  if (els.privacyModeInput) els.privacyModeInput.checked = !!value;
+  if (!value) revealPrivacyBlur(false);
+  resetPrivacyDeadline();
+}
+
+function applyPrivacyBlur() {
+  if (!isPrivacyModeEnabled() || state.privacyBlurred) return;
+  state.privacyBlurred = true;
+  els.quoteCard?.classList.add('privacy-blurred');
+  els.quoteCard?.setAttribute('aria-label', 'Цитата скрыта. Нажмите, чтобы показать');
+}
+
+function revealPrivacyBlur(reset = true) {
+  if (!state.privacyBlurred && !reset) return;
+  state.privacyBlurred = false;
+  els.quoteCard?.classList.remove('privacy-blurred');
+  els.quoteCard?.removeAttribute('aria-label');
+  if (reset) resetPrivacyDeadline();
+}
+
+function resetPrivacyDeadline() {
+  state.privacyDeadline = Date.now() + AUTO_REFRESH_MS;
+}
+
 function handleQuoteCardRefresh(event) {
-  if (!isClickRefreshEnabled()) return;
   const interactive = event.target.closest('button, a, input, textarea, label, select');
   if (interactive) return;
+  if (state.privacyBlurred) {
+    event.preventDefault();
+    revealPrivacyBlur(true);
+    return;
+  }
+  if (!isClickRefreshEnabled()) return;
   event.preventDefault();
   loadRandomQuote();
 }
@@ -304,13 +362,19 @@ async function resolveLoginEmail(identifier) {
 
 function resetAutoRefreshDeadline() {
   state.autoRefreshAt = Date.now() + AUTO_REFRESH_MS;
+  resetPrivacyDeadline();
   updateMinuteTimer();
 }
 
 function updateMinuteTimer() {
   if (!els.minuteTimer) return;
+  if (state.privacyBlurred) {
+    els.minuteTimer.textContent = 'скрыто';
+    els.minuteTimer.classList.add('is-off');
+    return;
+  }
   if (isTimerDisabled()) {
-    els.minuteTimer.textContent = 'таймер выкл';
+    els.minuteTimer.textContent = isPrivacyModeEnabled() ? 'скрытие 01:00' : 'таймер выкл';
     els.minuteTimer.classList.add('is-off');
     return;
   }
@@ -326,8 +390,19 @@ function startAutoRefreshTicker() {
   updateMinuteTimer();
   window.setInterval(async () => {
     updateMinuteTimer();
-    if (isTimerDisabled()) return;
-    if (Date.now() < state.autoRefreshAt || state.autoRefreshBusy) return;
+    const now = Date.now();
+    if (isPrivacyModeEnabled() && !state.privacyBlurred && now >= state.privacyDeadline) {
+      applyPrivacyBlur();
+      updateMinuteTimer();
+      return;
+    }
+    if (isTimerDisabled() || state.privacyBlurred) return;
+    if (now < state.autoRefreshAt || state.autoRefreshBusy) return;
+    if (isPrivacyModeEnabled()) {
+      applyPrivacyBlur();
+      updateMinuteTimer();
+      return;
+    }
     state.autoRefreshBusy = true;
     try {
       await loadRandomQuote();
@@ -346,7 +421,6 @@ function openModal(el) {
 function closeModal(el) {
   if (!el) return;
   el.hidden = true;
-  if (el === els.chatModal) stopChatPolling();
   if ([...document.querySelectorAll('.modal')].every((modal) => modal.hidden)) {
     document.body.style.overflow = '';
   }
@@ -506,6 +580,7 @@ function readCurrentQuote() {
 function showQuote(quote, syncUrl = true) {
   if (!quote) return;
   state.currentQuote = quote;
+  revealPrivacyBlur(false);
   if (els.quoteText) els.quoteText.textContent = quote.text;
   if (els.quoteId) els.quoteId.value = quote.id;
   saveCurrentQuote(quote);
@@ -574,6 +649,7 @@ function updateAuthUI() {
   if (els.settingsUsername) els.settingsUsername.value = getDisplayUsername() || '';
   if (els.disableTimerInput) els.disableTimerInput.checked = isTimerDisabled();
   if (els.clickRefreshInput) els.clickRefreshInput.checked = isClickRefreshEnabled();
+  if (els.privacyModeInput) els.privacyModeInput.checked = isPrivacyModeEnabled();
   els.quoteCard?.classList.toggle('click-refresh-enabled', isClickRefreshEnabled());
   syncThemeInputs();
   updateMinuteTimer();
@@ -608,7 +684,7 @@ async function loadProfile() {
   }
 
   const { data, error } = await withTimeout(
-    supabase.from('profiles').select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent,disable_timer,click_refresh_enabled').eq('id', state.user.id).maybeSingle(),
+    supabase.from('profiles').select('id,email,username,role,hide_disliked,hide_liked,light_accent,dark_accent,disable_timer,click_refresh_enabled,privacy_mode_enabled').eq('id', state.user.id).maybeSingle(),
     'load profile'
   );
   if (error) throw error;
@@ -619,6 +695,7 @@ async function loadProfile() {
   if (state.profile?.dark_accent) localStorage.setItem(DARK_ACCENT_KEY, state.profile.dark_accent);
   if (typeof state.profile?.disable_timer === 'boolean') localStorage.setItem(TIMER_DISABLED_KEY, state.profile.disable_timer ? 'true' : 'false');
   if (typeof state.profile?.click_refresh_enabled === 'boolean') localStorage.setItem(CLICK_REFRESH_KEY, state.profile.click_refresh_enabled ? 'true' : 'false');
+  if (typeof state.profile?.privacy_mode_enabled === 'boolean') localStorage.setItem(PRIVACY_MODE_KEY, state.profile.privacy_mode_enabled ? 'true' : 'false');
   setAccentCssVar(getStoredAccent(document.body.classList.contains('dark') ? 'dark' : 'light'));
   updateAuthUI();
 }
@@ -1314,6 +1391,18 @@ async function toggleClickRefreshPreference() {
   }
 }
 
+
+async function togglePrivacyModePreference() {
+  const nextValue = !!els.privacyModeInput?.checked;
+  setPrivacyModeEnabled(nextValue);
+  try {
+    await persistQuickPreference('privacy_mode_enabled', nextValue);
+    setMessage(els.globalMessage, 'Скрытый режим сохранён.', 'success');
+  } catch {
+    setPrivacyModeEnabled(!nextValue);
+  }
+}
+
 function getAliasMap() {
   try { return JSON.parse(localStorage.getItem(CHAT_ALIAS_CACHE_KEY) || '{}'); } catch { return {}; }
 }
@@ -1358,8 +1447,18 @@ async function loadChatNotifications(notify=false) {
   state.chatNotifications = data?.[0] || { unread: 0, requests: 0 };
   updateChatBadge();
   if (notify) {
-    if (state.chatNotifications.requests > prev.requests) { setMessage(els.globalMessage, 'Есть новый запрос в контакты.', 'info'); showToast('Есть новый запрос в контакты.', 'info'); }
-    if (state.chatNotifications.unread > prev.unread) { setMessage(els.globalMessage, 'Есть новые сообщения.', 'info'); showToast('Есть новые сообщения.', 'info'); }
+    if (state.chatNotifications.requests > prev.requests) {
+      const msg = 'Есть новый запрос в контакты.';
+      setMessage(els.globalMessage, msg, 'info');
+      showToast(msg, 'info');
+      sendBrowserNotification('Мудрость дня — чат', msg);
+    }
+    if (state.chatNotifications.unread > prev.unread) {
+      const msg = 'Есть новые сообщения.';
+      setMessage(els.globalMessage, msg, 'info');
+      showToast(msg, 'info');
+      sendBrowserNotification('Мудрость дня — чат', msg);
+    }
   }
 }
 
@@ -1376,7 +1475,7 @@ async function loadChatUsers(force = false) {
 
 function setChatTab(tab) {
   state.activeChatTab = tab;
-  const labels = { contacts: 'Контакты', requests: 'Запросы', users: 'Поиск пользователей' };
+  const labels = { contacts: 'Контакты', requests: 'Запросы', users: 'Поиск' };
   if (els.chatSearchLabel) els.chatSearchLabel.textContent = labels[tab] || 'Чат';
   [els.chatTabContacts, els.chatTabRequests, els.chatTabUsers].forEach((btn) => {
     if (!btn) return;
@@ -1403,7 +1502,7 @@ function renderChatUsers() {
   const items = getVisibleChatItems();
   if (!items.length) {
     const empty = state.activeChatTab === 'requests' ? 'Пока нет запросов.' : state.activeChatTab === 'contacts' ? 'Пока нет контактов.' : 'Ничего не найдено.';
-    els.chatUserList.innerHTML = `<div class="settings-note">${empty}</div>`;
+    els.chatUserList.innerHTML = `<div class="settings-note chat-list-empty">${empty}</div>`;
     return;
   }
   els.chatUserList.innerHTML = items.map((item) => {
@@ -1465,6 +1564,7 @@ async function openChatModal() {
     return;
   }
   openModal(els.chatModal);
+  maybeRequestNotificationPermission();
   setMessage(els.chatMessageStatus, 'Загружаем чат...');
   try {
     await Promise.allSettled([loadChatUsers(true), loadChatNotifications()]);
@@ -1493,7 +1593,7 @@ function startChatPolling() {
         if (state.activeConversationId && state.activeChatPeer?.is_contact) await loadActiveChatMessages(true);
       }
     } catch {}
-  }, 1500);
+  }, 1000);
 }
 
 async function selectChatUser(userId) {
@@ -1639,6 +1739,7 @@ async function sendContactRequest(userId) {
     const entry = (state.chatUsers || []).find((item) => item.id === userId);
     if (entry) { state.activeChatPeer = entry; renderChatRequestPanel(entry); }
     setMessage(els.chatMessageStatus, 'Запрос отправлен.', 'success');
+    showToast('Запрос отправлен.', 'success');
   } catch (error) {
     setMessage(els.chatMessageStatus, normalizeError(error), 'error');
   }
@@ -1657,6 +1758,7 @@ async function respondContactRequest(requestId, accept, userId) {
     if (accept && userId) { await selectChatUser(userId); }
     else resetChatView('Выберите контакт или найдите пользователя.');
     setMessage(els.chatMessageStatus, accept ? 'Контакт добавлен.' : 'Запрос отклонён.', 'success');
+    showToast(accept ? 'Контакт добавлен.' : 'Запрос отклонён.', 'success');
   } catch (error) {
     setMessage(els.chatMessageStatus, normalizeError(error), 'error');
   }
@@ -1906,6 +2008,7 @@ function bindEvents() {
 
   els.disableTimerInput?.addEventListener('change', toggleTimerPreference);
   els.clickRefreshInput?.addEventListener('change', toggleClickRefreshPreference);
+  els.privacyModeInput?.addEventListener('change', togglePrivacyModePreference);
   els.chatUserSearch?.addEventListener('input', renderChatUsers);
   [els.chatTabContacts, els.chatTabRequests, els.chatTabUsers].forEach((btn) => btn?.addEventListener('click', () => setChatTab(btn.dataset.chatTab)));
   els.chatUserList?.addEventListener('click', (event) => {
@@ -1955,6 +2058,12 @@ function bindEvents() {
   els.recoveryForm?.addEventListener('submit', (event) => { event.preventDefault(); sendRecoveryEmail(); });
   els.resetPasswordForm?.addEventListener('submit', (event) => { event.preventDefault(); saveRecoveredPassword(); });
   els.chatForm?.addEventListener('submit', (event) => { event.preventDefault(); sendChatMessage(); });
+  els.chatMessageInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendChatMessage();
+    }
+  });
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
     if (isSigningOut) return;

@@ -161,6 +161,10 @@
             <span>Обновлять карточку по нажатию</span>
             <input id="clickRefreshInput" class="switch-input" type="checkbox" />
           </label>
+          <label class="setting-row setting-row--switch">
+            <span>Скрытый режим</span>
+            <input id="privacyModeInput" class="switch-input" type="checkbox" />
+          </label>
         </section>
       </div>
     </div>
@@ -307,29 +311,29 @@
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
-      <div class="modal-body chat-layout">
+      <div class="modal-body chat-layout chat-layout--compact">
         <aside class="chat-sidebar">
           <div id="chatTabs" class="segmented-control chat-tabs" role="tablist" aria-label="Разделы чата">
             <button class="segment-btn active" type="button" id="chatTabContacts" data-chat-tab="contacts">Контакты</button>
             <button class="segment-btn" type="button" id="chatTabRequests" data-chat-tab="requests">Запросы <span id="chatRequestsBadge" class="chat-badge inline" hidden>0</span></button>
             <button class="segment-btn" type="button" id="chatTabUsers" data-chat-tab="users">Поиск</button>
           </div>
-          <label class="field chat-search-field">
+          <label class="field chat-search-field chat-search-field--compact">
             <span id="chatSearchLabel">Контакты</span>
-            <input id="chatUserSearch" type="text" placeholder="Поиск по почте, логину или имени" />
+            <input id="chatUserSearch" type="text" placeholder="Почта, логин или имя контакта" />
           </label>
           <div id="chatUserList" class="chat-user-list"></div>
         </aside>
         <section class="chat-pane">
-          <div id="chatEmptyState" class="settings-note">Выберите контакт или найдите пользователя.</div>
+          <div id="chatEmptyState" class="settings-note chat-empty-state">Выберите контакт или найдите пользователя.</div>
           <div id="chatRequestPanel" class="chat-request-panel" hidden></div>
           <div id="chatThread" class="chat-thread" hidden>
-            <div class="chat-thread-head">
+            <div class="chat-thread-head chat-thread-head--compact">
               <div class="chat-thread-title-wrap">
                 <strong id="chatConversationTitle">—</strong>
                 <div id="chatThreadMeta" class="chat-thread-meta"></div>
               </div>
-              <div class="chat-thread-actions">
+              <div class="chat-thread-actions chat-thread-actions--compact">
                 <button id="openAliasModalBtn" class="text-btn" type="button">Имя контакта</button>
                 <button id="clearChatBtn" class="text-btn" type="button" hidden>Очистить чат</button>
                 <button id="removeContactBtn" class="text-btn" type="button" hidden>Удалить из контактов</button>

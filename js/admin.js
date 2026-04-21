@@ -29,6 +29,7 @@ const els = {
   quotesList: $('quotesList'),
   quoteSortSelect: $('quoteSortSelect'),
   suggestionsList: $('suggestionsList'),
+  archiveList: $('archiveList'),
   quoteSearchInput: $('quoteSearchInput'),
   editQuoteModal: $('editQuoteModal'),
   editQuoteForm: $('editQuoteForm'),
@@ -378,29 +379,49 @@ async function loadSuggestions() {
 
   if (error) {
     els.suggestionsList.innerHTML = '<div class="admin-empty">Не удалось загрузить предложения.</div>';
+    if (els.archiveList) els.archiveList.innerHTML = '<div class="admin-empty">Не удалось загрузить архив.</div>';
     return;
   }
 
-  if (!data?.length) {
+  const pending = (data || []).filter((item) => item.status === 'pending');
+  const archived = (data || []).filter((item) => item.status !== 'pending');
+
+  if (!pending.length) {
     els.suggestionsList.innerHTML = '<div class="admin-empty">Пока нет предложений.</div>';
-    return;
+  } else {
+    els.suggestionsList.innerHTML = pending.map((item) => `
+      <article class="admin-item">
+        <div class="admin-item__text">${escapeHtml(item.text)}</div>
+        <div class="admin-item__meta">
+          <span class="${badgeClass(item.status)}">${escapeHtml(item.status)}</span>
+          <span>${new Date(item.created_at).toLocaleString('ru-RU')}</span>
+          <span>предложил: ${escapeHtml(item.email || 'гость')}</span>
+        </div>
+        <div class="admin-item__actions">
+          <button class="text-btn primary" type="button" data-action="approve-suggestion" data-id="${item.id}">Принять</button>
+          <button class="text-btn" type="button" data-action="reject-suggestion" data-id="${item.id}">Отклонить</button>
+          <button class="text-btn danger" type="button" data-action="delete-suggestion" data-id="${item.id}">Удалить</button>
+        </div>
+      </article>
+    `).join('');
   }
 
-  els.suggestionsList.innerHTML = data.map((item) => `
-    <article class="admin-item">
-      <div class="admin-item__text">${escapeHtml(item.text)}</div>
-      <div class="admin-item__meta">
-        <span class="${badgeClass(item.status)}">${escapeHtml(item.status)}</span>
-        <span>${new Date(item.created_at).toLocaleString('ru-RU')}</span>
-        <span>предложил: ${escapeHtml(item.email || 'гость')}</span>
-      </div>
-      <div class="admin-item__actions">
-        <button class="text-btn primary" type="button" data-action="approve-suggestion" data-id="${item.id}">Принять</button>
-        <button class="text-btn" type="button" data-action="reject-suggestion" data-id="${item.id}">Отклонить</button>
-        <button class="text-btn danger" type="button" data-action="delete-suggestion" data-id="${item.id}">Удалить</button>
-      </div>
-    </article>
-  `).join('');
+  if (els.archiveList) {
+    if (!archived.length) {
+      els.archiveList.innerHTML = '<div class="admin-empty">Архив пока пуст.</div>';
+    } else {
+      els.archiveList.innerHTML = archived.map((item) => `
+        <article class="admin-item">
+          <div class="admin-item__text">${escapeHtml(item.text)}</div>
+          <div class="admin-item__meta">
+            <span class="${badgeClass(item.status)}">${escapeHtml(item.status)}</span>
+            <span>${item.reviewed_at ? new Date(item.reviewed_at).toLocaleString('ru-RU') : new Date(item.created_at).toLocaleString('ru-RU')}</span>
+            <span>предложил: ${escapeHtml(item.email || 'гость')}</span>
+          </div>
+        </article>
+      `).join('');
+    }
+  }
 }
 
 async function refreshAll() {
@@ -574,6 +595,7 @@ async function init() {
   els.addQuoteBtn.addEventListener('click', addQuote);
   els.quotesList.addEventListener('click', handleAdminAction);
   els.suggestionsList.addEventListener('click', handleAdminAction);
+  els.archiveList?.addEventListener('click', handleAdminAction);
   els.saveQuoteBtn.addEventListener('click', saveEditedQuote);
   els.quoteSortSelect?.addEventListener('change', loadQuotes);
   els.quoteSearchInput?.addEventListener('input', () => {
