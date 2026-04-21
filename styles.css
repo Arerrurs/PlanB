@@ -741,7 +741,7 @@ a { color: inherit; text-decoration: none; }
 .chat-dialog { width: min(100% - 32px, 960px); }
 .chat-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 16px;
 }
 .chat-sidebar, .chat-pane {
@@ -749,14 +749,17 @@ a { color: inherit; text-decoration: none; }
 }
 .chat-sidebar {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 12px;
+  min-width: 0;
 }
 .chat-user-list {
   display: grid;
   gap: 8px;
   overflow: auto;
   padding-right: 4px;
+  min-height: 0;
+  max-height: 470px;
 }
 .chat-user-item {
   display: grid;
@@ -777,6 +780,7 @@ a { color: inherit; text-decoration: none; }
 .chat-pane {
   display: grid;
   grid-template-rows: 1fr;
+  min-width: 0;
 }
 .chat-thread {
   display: grid;
@@ -994,6 +998,7 @@ a { color: inherit; text-decoration: none; }
   min-height: 40px;
   padding: 9px 12px;
   font-size: 14px;
+  width: 100%;
 }
 .chat-user-list {
   min-height: 0;
@@ -1015,11 +1020,13 @@ a { color: inherit; text-decoration: none; }
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  min-height: 96px;
 }
 .chat-thread-actions--compact {
   margin-top: 0;
   justify-content: flex-end;
   max-width: 46%;
+  flex: 0 0 240px;
 }
 .chat-thread-actions--compact .text-btn {
   min-height: 38px;
@@ -1066,3 +1073,5 @@ a { color: inherit; text-decoration: none; }
     max-height: 34vh;
   }
 }
+
+.chat-user-list, .chat-messages { overscroll-behavior: contain; }

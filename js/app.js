@@ -261,7 +261,7 @@ function setPrivacyModeEnabled(value) {
   if (state.profile) state.profile.privacy_mode_enabled = !!value;
   if (els.privacyModeInput) els.privacyModeInput.checked = !!value;
   if (!value) revealPrivacyBlur(false);
-  resetPrivacyDeadline();
+  resetAutoRefreshDeadline();
 }
 
 function applyPrivacyBlur() {
@@ -276,7 +276,7 @@ function revealPrivacyBlur(reset = true) {
   state.privacyBlurred = false;
   els.quoteCard?.classList.remove('privacy-blurred');
   els.quoteCard?.removeAttribute('aria-label');
-  if (reset) resetPrivacyDeadline();
+  if (reset) resetAutoRefreshDeadline();
 }
 
 function resetPrivacyDeadline() {
@@ -373,17 +373,18 @@ function updateMinuteTimer() {
     els.minuteTimer.classList.add('is-off');
     return;
   }
-  if (isTimerDisabled()) {
-    els.minuteTimer.textContent = isPrivacyModeEnabled() ? 'скрытие 01:00' : 'таймер выкл';
+  const target = isTimerDisabled() ? state.privacyDeadline : state.autoRefreshAt;
+  if (isTimerDisabled() && !isPrivacyModeEnabled()) {
+    els.minuteTimer.textContent = 'таймер выкл';
     els.minuteTimer.classList.add('is-off');
     return;
   }
-  els.minuteTimer.classList.remove('is-off');
-  const remaining = Math.max(0, state.autoRefreshAt - Date.now());
+  els.minuteTimer.classList.toggle('is-off', isTimerDisabled());
+  const remaining = Math.max(0, target - Date.now());
   const totalSeconds = Math.ceil(remaining / 1000);
   const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
   const seconds = String(totalSeconds % 60).padStart(2, '0');
-  els.minuteTimer.textContent = `${minutes}:${seconds}`;
+  els.minuteTimer.textContent = isTimerDisabled() ? `скрытие ${minutes}:${seconds}` : `${minutes}:${seconds}`;
 }
 
 function startAutoRefreshTicker() {
@@ -1369,14 +1370,14 @@ async function persistQuickPreference(field, value) {
 async function toggleTimerPreference() {
   const nextValue = !!els.disableTimerInput?.checked;
   setTimerDisabled(nextValue);
-  updateMinuteTimer();
+  resetAutoRefreshDeadline();
   try {
     await persistQuickPreference('disable_timer', nextValue);
     setMessage(els.globalMessage, 'Настройка таймера сохранена.', 'success');
   } catch {
     setTimerDisabled(!nextValue);
     if (els.disableTimerInput) els.disableTimerInput.checked = !nextValue;
-    updateMinuteTimer();
+    resetAutoRefreshDeadline();
   }
 }
 
@@ -1527,6 +1528,10 @@ function resetChatView(message='Выберите контакт или найд�
   state.activeChatPeer = null;
   state.activeChatRelation = null;
   state.activeRequestId = null;
+  if (els.chatConversationTitle) els.chatConversationTitle.textContent = 'Чат';
+  if (els.chatThreadMeta) els.chatThreadMeta.textContent = '';
+  if (els.chatMessages) els.chatMessages.innerHTML = '';
+  if (els.chatMessageInput) els.chatMessageInput.value = '';
   if (els.chatEmptyState) { els.chatEmptyState.hidden = false; els.chatEmptyState.textContent = message; }
   if (els.chatRequestPanel) { els.chatRequestPanel.hidden = true; els.chatRequestPanel.innerHTML = ''; }
   if (els.chatThread) els.chatThread.hidden = true;
@@ -1568,8 +1573,9 @@ async function openChatModal() {
   setMessage(els.chatMessageStatus, 'Загружаем чат...');
   try {
     await Promise.allSettled([loadChatUsers(true), loadChatNotifications()]);
-    setChatTab(state.activeChatTab || 'contacts');
     resetChatView();
+    setChatTab(state.activeChatTab || 'contacts');
+    renderChatUsers();
     setMessage(els.chatMessageStatus, '');
   } catch (error) {
     setMessage(els.aliasMessage, normalizeError(error), 'error');
