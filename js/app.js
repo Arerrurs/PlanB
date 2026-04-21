@@ -126,6 +126,8 @@ const els = {
   chatConversationTitle: $('chatConversationTitle'),
   chatThreadMeta: $('chatThreadMeta'),
   openAliasModalBtn: $('openAliasModalBtn'),
+  removeContactBtn: $('removeContactBtn'),
+  clearChatBtn: $('clearChatBtn'),
   aliasModal: $('aliasModal'),
   chatAliasInput: $('chatAliasInput'),
   saveChatAliasBtn: $('saveChatAliasBtn'),
@@ -1429,6 +1431,13 @@ function resetChatView(message='Выберите контакт или найд�
   if (els.chatEmptyState) { els.chatEmptyState.hidden = false; els.chatEmptyState.textContent = message; }
   if (els.chatRequestPanel) { els.chatRequestPanel.hidden = true; els.chatRequestPanel.innerHTML = ''; }
   if (els.chatThread) els.chatThread.hidden = true;
+  updateChatActionButtons(null);
+}
+
+function updateChatActionButtons(entry = state.activeChatPeer) {
+  const isContact = !!entry?.is_contact;
+  if (els.removeContactBtn) els.removeContactBtn.hidden = !isContact;
+  if (els.clearChatBtn) els.clearChatBtn.hidden = !isContact;
 }
 
 function renderChatRequestPanel(entry) {
@@ -1484,7 +1493,7 @@ function startChatPolling() {
         if (state.activeConversationId && state.activeChatPeer?.is_contact) await loadActiveChatMessages(true);
       }
     } catch {}
-  }, 3000);
+  }, 1500);
 }
 
 async function selectChatUser(userId) {
@@ -1497,6 +1506,7 @@ async function selectChatUser(userId) {
   els.chatConversationTitle.textContent = getChatDisplayName(entry);
   if (els.chatThreadMeta) els.chatThreadMeta.textContent = entry.email || '';
   if (els.chatAliasInput) els.chatAliasInput.value = entry.alias || getLocalAlias(entry.id) || '';
+  updateChatActionButtons(entry);
   if (entry.is_contact) {
     if (els.chatRequestPanel) els.chatRequestPanel.hidden = true;
     setMessage(els.chatMessageStatus, 'Открываем диалог...');
@@ -1556,6 +1566,39 @@ async function sendChatMessage() {
   }
 }
 
+
+async function removeChatContact() {
+  if (!state.activeChatPeer?.id) return;
+  const ok = confirm(`Удалить ${getChatDisplayName(state.activeChatPeer)} из контактов? Чат станет недоступен, пока вы снова не добавите друг друга.`);
+  if (!ok) return;
+  setMessage(els.chatMessageStatus, 'Удаляем контакт...');
+  try {
+    const { error } = await withTimeout(supabase.rpc('remove_chat_contact', { p_other_user: state.activeChatPeer.id }), 'remove contact');
+    if (error) throw error;
+    await Promise.allSettled([loadChatUsers(true), loadChatNotifications()]);
+    resetChatView('Контакт удалён.');
+    renderChatUsers();
+    setMessage(els.chatMessageStatus, 'Контакт удалён.', 'success');
+  } catch (error) {
+    setMessage(els.chatMessageStatus, normalizeError(error), 'error');
+  }
+}
+
+async function clearActiveChatConversation() {
+  if (!state.activeChatPeer?.id) return;
+  const ok = confirm('Очистить переписку с этим контактом?');
+  if (!ok) return;
+  setMessage(els.chatMessageStatus, 'Очищаем чат...');
+  try {
+    const { error } = await withTimeout(supabase.rpc('clear_direct_conversation', { p_other_user: state.activeChatPeer.id }), 'clear conversation');
+    if (error) throw error;
+    await loadActiveChatMessages(true);
+    await Promise.allSettled([loadChatUsers(true), loadChatNotifications(true)]);
+    setMessage(els.chatMessageStatus, 'Чат очищен.', 'success');
+  } catch (error) {
+    setMessage(els.chatMessageStatus, normalizeError(error), 'error');
+  }
+}
 
 function openAliasModal() {
   if (!state.activeChatPeer?.id) {
@@ -1882,6 +1925,8 @@ function bindEvents() {
   });
   els.chatSendBtn?.addEventListener('click', sendChatMessage);
   els.openAliasModalBtn?.addEventListener('click', openAliasModal);
+  els.removeContactBtn?.addEventListener('click', removeChatContact);
+  els.clearChatBtn?.addEventListener('click', clearActiveChatConversation);
   els.saveChatAliasBtn?.addEventListener('click', saveChatAlias);
   els.chatMessageInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {

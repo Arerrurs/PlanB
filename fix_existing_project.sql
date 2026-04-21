@@ -657,3 +657,83 @@ end;
 $$;
 
 grant execute on function public.get_or_create_direct_conversation(uuid) to authenticated;
+
+
+-- remove contact and clear chat helpers
+create or replace function public.remove_chat_contact(p_other_user uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then raise exception 'not authenticated'; end if;
+  if p_other_user is null or p_other_user = v_uid then raise exception 'invalid user'; end if;
+
+  delete from public.chat_contact_aliases
+  where (owner_id = v_uid and contact_user_id = p_other_user)
+     or (owner_id = p_other_user and contact_user_id = v_uid);
+
+  delete from public.chat_messages
+  where conversation_id in (
+    select c.id
+    from public.chat_conversations c
+    join public.chat_conversation_members m1 on m1.conversation_id = c.id and m1.user_id = v_uid
+    join public.chat_conversation_members m2 on m2.conversation_id = c.id and m2.user_id = p_other_user
+    where c.is_group = false
+  );
+
+  delete from public.chat_conversation_members
+  where conversation_id in (
+    select c.id
+    from public.chat_conversations c
+    join public.chat_conversation_members m1 on m1.conversation_id = c.id and m1.user_id = v_uid
+    join public.chat_conversation_members m2 on m2.conversation_id = c.id and m2.user_id = p_other_user
+    where c.is_group = false
+  );
+
+  delete from public.chat_conversations
+  where id in (
+    select c.id
+    from public.chat_conversations c
+    left join public.chat_conversation_members m on m.conversation_id = c.id
+    where c.is_group = false
+    group by c.id
+    having count(m.user_id) = 0
+  );
+
+  delete from public.chat_contact_requests
+  where (requester_id = v_uid and target_id = p_other_user)
+     or (requester_id = p_other_user and target_id = v_uid);
+end;
+$$;
+grant execute on function public.remove_chat_contact(uuid) to authenticated;
+
+create or replace function public.clear_direct_conversation(p_other_user uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_conversation_id uuid;
+begin
+  if v_uid is null then raise exception 'not authenticated'; end if;
+  select c.id into v_conversation_id
+  from public.chat_conversations c
+  join public.chat_conversation_members m1 on m1.conversation_id = c.id and m1.user_id = v_uid
+  join public.chat_conversation_members m2 on m2.conversation_id = c.id and m2.user_id = p_other_user
+  where c.is_group = false
+  limit 1;
+
+  if v_conversation_id is null then return; end if;
+
+  delete from public.chat_messages where conversation_id = v_conversation_id;
+  update public.chat_conversations set updated_at = now() where id = v_conversation_id;
+  update public.chat_conversation_members set last_read_at = now() where conversation_id = v_conversation_id;
+end;
+$$;
+grant execute on function public.clear_direct_conversation(uuid) to authenticated;
