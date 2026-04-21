@@ -316,7 +316,7 @@
           </div>
           <label class="field chat-search-field">
             <span id="chatSearchLabel">Контакты</span>
-            <input id="chatUserSearch" type="text" placeholder="Почта, логин или имя контакта" />
+            <input id="chatUserSearch" type="text" placeholder="Поиск по почте, логину или имени" />
           </label>
           <div id="chatUserList" class="chat-user-list"></div>
         </aside>
@@ -329,9 +329,8 @@
                 <strong id="chatConversationTitle">—</strong>
                 <div id="chatThreadMeta" class="chat-thread-meta"></div>
               </div>
-              <div id="chatAliasRow" class="chat-alias-row" hidden>
-                <input id="chatAliasInput" type="text" placeholder="Моё имя для контакта" />
-                <button id="saveChatAliasBtn" class="text-btn" type="button">Сохранить имя</button>
+              <div class="chat-thread-actions">
+                <button id="openAliasModalBtn" class="text-btn" type="button">Имя контакта</button>
               </div>
             </div>
             <div id="chatMessages" class="chat-messages"></div>
@@ -342,6 +341,31 @@
           </div>
           <div id="chatMessageStatus" class="message" aria-live="polite"></div>
         </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="aliasModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="aliasModal"></div>
+    <div class="modal-dialog slim">
+      <div class="modal-header">
+        <h2>Имя контакта</h2>
+        <button class="icon-btn" type="button" data-close="aliasModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="aliasForm" class="stack-form">
+          <div class="settings-note muted-note">Это имя видно только вам.</div>
+          <label class="field">
+            <span>Моё имя для контакта</span>
+            <input id="chatAliasInput" type="text" placeholder="Например, Староста" />
+          </label>
+          <div class="row-actions single">
+            <button id="saveChatAliasBtn" class="text-btn primary" type="button">Сохранить имя</button>
+          </div>
+          <div id="aliasMessage" class="message" aria-live="polite"></div>
+        </form>
       </div>
     </div>
   </div>
@@ -428,6 +452,7 @@
     </div>
   </div>
 
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>

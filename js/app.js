@@ -125,9 +125,12 @@ const els = {
   chatThread: $('chatThread'),
   chatConversationTitle: $('chatConversationTitle'),
   chatThreadMeta: $('chatThreadMeta'),
-  chatAliasRow: $('chatAliasRow'),
+  openAliasModalBtn: $('openAliasModalBtn'),
+  aliasModal: $('aliasModal'),
   chatAliasInput: $('chatAliasInput'),
   saveChatAliasBtn: $('saveChatAliasBtn'),
+  aliasMessage: $('aliasMessage'),
+  toastContainer: $('toastContainer'),
   chatMessages: $('chatMessages'),
   chatForm: $('chatForm'),
   chatMessageInput: $('chatMessageInput'),
@@ -177,6 +180,15 @@ function setMessage(el, text = '', type = 'info') {
   el.textContent = text;
   const colors = { info: 'var(--muted)', success: 'var(--success)', error: 'var(--danger)' };
   el.style.color = colors[type] || colors.info;
+}
+
+function showToast(text, type = 'info') {
+  if (!text || !els.toastContainer) return;
+  const node = document.createElement('div');
+  node.className = `toast ${type}`;
+  node.textContent = text;
+  els.toastContainer.appendChild(node);
+  window.setTimeout(() => node.remove(), 3200);
 }
 
 function normalizeError(error) {
@@ -554,7 +566,7 @@ function updateAuthUI() {
   setMessage(els.settingsMessage, '');
   const displayUsername = getDisplayUsername();
   if (els.userEmail) els.userEmail.textContent = displayUsername ? `${displayUsername} · ${state.user?.email || '—'}` : (state.user?.email || '—');
-  if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'block' : 'none';
+  if (els.adminLink) els.adminLink.style.display = state.profile?.role === 'admin' ? 'inline-flex' : 'none';
   if (els.settingsEmailStatic) els.settingsEmailStatic.textContent = state.user?.email || '—';
   if (els.settingsEmailInput) els.settingsEmailInput.value = '';
   if (els.settingsUsername) els.settingsUsername.value = getDisplayUsername() || '';
@@ -1344,8 +1356,8 @@ async function loadChatNotifications(notify=false) {
   state.chatNotifications = data?.[0] || { unread: 0, requests: 0 };
   updateChatBadge();
   if (notify) {
-    if (state.chatNotifications.requests > prev.requests) setMessage(els.globalMessage, 'Есть новый запрос в контакты.', 'info');
-    if (state.chatNotifications.unread > prev.unread) setMessage(els.globalMessage, 'Есть новые сообщения.', 'info');
+    if (state.chatNotifications.requests > prev.requests) { setMessage(els.globalMessage, 'Есть новый запрос в контакты.', 'info'); showToast('Есть новый запрос в контакты.', 'info'); }
+    if (state.chatNotifications.unread > prev.unread) { setMessage(els.globalMessage, 'Есть новые сообщения.', 'info'); showToast('Есть новые сообщения.', 'info'); }
   }
 }
 
@@ -1417,7 +1429,6 @@ function resetChatView(message='Выберите контакт или найд�
   if (els.chatEmptyState) { els.chatEmptyState.hidden = false; els.chatEmptyState.textContent = message; }
   if (els.chatRequestPanel) { els.chatRequestPanel.hidden = true; els.chatRequestPanel.innerHTML = ''; }
   if (els.chatThread) els.chatThread.hidden = true;
-  if (els.chatAliasRow) els.chatAliasRow.hidden = true;
 }
 
 function renderChatRequestPanel(entry) {
@@ -1452,6 +1463,7 @@ async function openChatModal() {
     resetChatView();
     setMessage(els.chatMessageStatus, '');
   } catch (error) {
+    setMessage(els.aliasMessage, normalizeError(error), 'error');
     setMessage(els.chatMessageStatus, normalizeError(error), 'error');
   }
   startChatPolling();
@@ -1472,7 +1484,7 @@ function startChatPolling() {
         if (state.activeConversationId && state.activeChatPeer?.is_contact) await loadActiveChatMessages(true);
       }
     } catch {}
-  }, 8000);
+  }, 3000);
 }
 
 async function selectChatUser(userId) {
@@ -1486,7 +1498,6 @@ async function selectChatUser(userId) {
   if (els.chatThreadMeta) els.chatThreadMeta.textContent = entry.email || '';
   if (els.chatAliasInput) els.chatAliasInput.value = entry.alias || getLocalAlias(entry.id) || '';
   if (entry.is_contact) {
-    if (els.chatAliasRow) els.chatAliasRow.hidden = false;
     if (els.chatRequestPanel) els.chatRequestPanel.hidden = true;
     setMessage(els.chatMessageStatus, 'Открываем диалог...');
     const { data, error } = await withTimeout(supabase.rpc('get_or_create_direct_conversation', { p_other_user: userId }), 'open chat conversation');
@@ -1498,8 +1509,7 @@ async function selectChatUser(userId) {
   } else {
     if (els.chatEmptyState) els.chatEmptyState.hidden = true;
     if (els.chatThread) els.chatThread.hidden = true;
-    if (els.chatAliasRow) els.chatAliasRow.hidden = true;
-    renderChatRequestPanel(entry);
+      renderChatRequestPanel(entry);
     setMessage(els.chatMessageStatus, '');
   }
 }
@@ -1546,6 +1556,17 @@ async function sendChatMessage() {
   }
 }
 
+
+function openAliasModal() {
+  if (!state.activeChatPeer?.id) {
+    setMessage(els.chatMessageStatus, 'Сначала выберите контакт.', 'info');
+    return;
+  }
+  if (els.chatAliasInput) els.chatAliasInput.value = state.activeChatPeer.alias || getLocalAlias(state.activeChatPeer.id) || '';
+  setMessage(els.aliasMessage, '');
+  openModal(els.aliasModal);
+}
+
 async function saveChatAlias() {
   if (!state.activeChatPeer?.id) return;
   const alias = (els.chatAliasInput?.value || '').trim();
@@ -1557,8 +1578,11 @@ async function saveChatAlias() {
     state.activeChatPeer = (state.chatUsers || []).find((item) => item.id === state.activeChatPeer.id) || state.activeChatPeer;
     renderChatUsers();
     els.chatConversationTitle.textContent = getChatDisplayName(state.activeChatPeer);
+    setMessage(els.aliasMessage, 'Имя контакта сохранено.', 'success');
     setMessage(els.chatMessageStatus, 'Имя контакта сохранено.', 'success');
+    closeModal(els.aliasModal);
   } catch (error) {
+    setMessage(els.aliasMessage, normalizeError(error), 'error');
     setMessage(els.chatMessageStatus, normalizeError(error), 'error');
   }
 }
@@ -1581,6 +1605,10 @@ async function respondContactRequest(requestId, accept, userId) {
   try {
     const { error } = await withTimeout(supabase.rpc('respond_contact_request', { p_request_id: requestId, p_accept: accept }), 'respond contact request');
     if (error) throw error;
+    if (state.chatNotifications && Number(state.chatNotifications.requests || 0) > 0) {
+      state.chatNotifications.requests = Math.max(0, Number(state.chatNotifications.requests || 0) - 1);
+      updateChatBadge();
+    }
     await Promise.allSettled([loadChatUsers(true), loadChatNotifications()]);
     renderChatUsers();
     if (accept && userId) { await selectChatUser(userId); }
@@ -1853,6 +1881,7 @@ function bindEvents() {
     if (action === 'reject') respondContactRequest(requestId, false, userId);
   });
   els.chatSendBtn?.addEventListener('click', sendChatMessage);
+  els.openAliasModalBtn?.addEventListener('click', openAliasModal);
   els.saveChatAliasBtn?.addEventListener('click', saveChatAlias);
   els.chatMessageInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
