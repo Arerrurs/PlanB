@@ -52,6 +52,19 @@ const state = {
   chatNoticeTimer: null,
 };
 
+
+function isMobileChatLayout() {
+  return window.matchMedia('(max-width: 680px)').matches;
+}
+
+function setChatMobileView(mode = 'list') {
+  if (!els.chatModal) return;
+  els.chatModal.classList.remove('chat-view-list', 'chat-view-thread');
+  if (isMobileChatLayout()) {
+    els.chatModal.classList.add(mode === 'thread' ? 'chat-view-thread' : 'chat-view-list');
+  }
+}
+
 const $ = (id) => document.getElementById(id);
 
 const els = {
@@ -128,6 +141,7 @@ const els = {
   chatThread: $('chatThread'),
   chatConversationTitle: $('chatConversationTitle'),
   chatThreadMeta: $('chatThreadMeta'),
+  chatBackBtn: $('chatBackBtn'),
   openAliasModalBtn: $('openAliasModalBtn'),
   removeContactBtn: $('removeContactBtn'),
   clearChatBtn: $('clearChatBtn'),
@@ -1536,6 +1550,7 @@ function resetChatView(message='Выберите контакт или найд�
   if (els.chatRequestPanel) { els.chatRequestPanel.hidden = true; els.chatRequestPanel.innerHTML = ''; }
   if (els.chatThread) els.chatThread.hidden = true;
   updateChatActionButtons(null);
+  setChatMobileView('list');
 }
 
 function updateChatActionButtons(entry = state.activeChatPeer) {
@@ -1569,6 +1584,7 @@ async function openChatModal() {
     return;
   }
   openModal(els.chatModal);
+  setChatMobileView('list');
   maybeRequestNotificationPermission();
   setMessage(els.chatMessageStatus, 'Загружаем чат...');
   try {
@@ -1609,6 +1625,7 @@ async function selectChatUser(userId) {
   state.activeChatRelation = entry.relation_status || (entry.is_contact ? 'accepted' : 'none');
   state.activeRequestId = entry.request_id || null;
   renderChatUsers();
+  setChatMobileView('thread');
   els.chatConversationTitle.textContent = getChatDisplayName(entry);
   if (els.chatThreadMeta) els.chatThreadMeta.textContent = entry.email || '';
   if (els.chatAliasInput) els.chatAliasInput.value = entry.alias || getLocalAlias(entry.id) || '';
@@ -1995,6 +2012,7 @@ function bindEvents() {
   els.openFavoritesBtn?.addEventListener('click', () => openFavorites(false));
   els.openDislikedBtn?.addEventListener('click', () => openDisliked(false));
   els.openChatBtn?.addEventListener('click', openChatModal);
+  els.chatBackBtn?.addEventListener('click', () => resetChatView());
 
   els.likedFilterControl?.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-liked-mode]');
@@ -2125,6 +2143,16 @@ async function init() {
 
 window.addEventListener('unhandledrejection', (event) => {
   console.warn('Unhandled rejection:', event.reason);
+});
+
+window.addEventListener('resize', () => {
+  if (!els.chatModal || els.chatModal.hidden) return;
+  if (isMobileChatLayout()) {
+    els.chatModal.classList.toggle('chat-view-thread', !!state.activeChatPeer);
+    els.chatModal.classList.toggle('chat-view-list', !state.activeChatPeer);
+  } else {
+    els.chatModal.classList.remove('chat-view-list', 'chat-view-thread');
+  }
 });
 
 document.addEventListener('DOMContentLoaded', init);
