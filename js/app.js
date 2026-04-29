@@ -1589,9 +1589,9 @@ function resetChatView(message='Выберите контакт или найд�
   if (els.chatThreadMeta) els.chatThreadMeta.textContent = '';
   if (els.chatMessages) els.chatMessages.innerHTML = '';
   if (els.chatMessageInput) els.chatMessageInput.value = '';
-  if (els.chatEmptyState) { els.chatEmptyState.hidden = false; els.chatEmptyState.textContent = message; }
-  if (els.chatRequestPanel) { els.chatRequestPanel.hidden = true; els.chatRequestPanel.innerHTML = ''; }
-  if (els.chatThread) els.chatThread.hidden = true;
+  if (els.chatEmptyState) { els.chatEmptyState.hidden = false; els.chatEmptyState.style.display = ''; els.chatEmptyState.textContent = message; }
+  if (els.chatRequestPanel) { els.chatRequestPanel.hidden = true; els.chatRequestPanel.style.display = 'none'; els.chatRequestPanel.innerHTML = ''; }
+  if (els.chatThread) { els.chatThread.hidden = true; els.chatThread.style.display = 'none'; }
   updateChatActionButtons(null);
   setChatMobileView('list');
 }
@@ -1618,6 +1618,7 @@ function renderChatRequestPanel(entry) {
   }
   els.chatRequestPanel.innerHTML = html;
   els.chatRequestPanel.hidden = false;
+  els.chatRequestPanel.style.display = '';
 }
 
 async function openChatModal() {
@@ -1681,11 +1682,13 @@ async function selectChatUser(userId) {
     if (error) return setMessage(els.chatMessageStatus, normalizeError(error), 'error');
     state.activeConversationId = data;
     if (els.chatEmptyState) els.chatEmptyState.hidden = true;
-    if (els.chatThread) els.chatThread.hidden = false;
+    if (els.chatThread) { els.chatThread.hidden = false; els.chatThread.style.display = ''; }
+    if (els.chatEmptyState) { els.chatEmptyState.hidden = true; els.chatEmptyState.style.display = 'none'; }
+    if (els.chatRequestPanel) { els.chatRequestPanel.hidden = true; els.chatRequestPanel.style.display = 'none'; }
     await loadActiveChatMessages();
   } else {
     if (els.chatEmptyState) els.chatEmptyState.hidden = true;
-    if (els.chatThread) els.chatThread.hidden = true;
+    if (els.chatThread) { els.chatThread.hidden = true; els.chatThread.style.display = 'none'; }
       renderChatRequestPanel(entry);
     setMessage(els.chatMessageStatus, '');
   }
@@ -1700,12 +1703,18 @@ async function loadActiveChatMessages(silent = false) {
   if (!messages.length) {
     els.chatMessages.innerHTML = '<div class="settings-note">Пока нет сообщений. Напишите первым.</div>';
   } else {
-    els.chatMessages.innerHTML = messages.map((item) => `
-      <article class="chat-bubble ${item.sender_id === state.user?.id ? 'mine' : ''}">
-        <div class="chat-bubble__author">${escapeHtml(item.sender_name || 'Пользователь')}</div>
-        <div class="chat-bubble__text">${escapeHtml(item.text)}</div>
-        <div class="chat-bubble__meta">${formatDateTime(item.created_at)}</div>
-      </article>`).join('');
+    let lastDate = '';
+    els.chatMessages.innerHTML = messages.map((item) => {
+      const date = item.created_at ? new Date(item.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '';
+      const dateChip = date && date !== lastDate ? `<div class="chat-date-chip">${escapeHtml(date)}</div>` : '';
+      if (date) lastDate = date;
+      return `${dateChip}
+        <article class="chat-bubble ${item.sender_id === state.user?.id ? 'mine' : ''}">
+          <div class="chat-bubble__author">${escapeHtml(item.sender_name || 'Пользователь')}</div>
+          <div class="chat-bubble__text">${escapeHtml(item.text)}</div>
+          <div class="chat-bubble__meta">${formatDateTime(item.created_at)}</div>
+        </article>`;
+    }).join('');
     els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
   }
   await Promise.allSettled([withTimeout(supabase.rpc('mark_conversation_read', { p_conversation_id: state.activeConversationId }), 'mark read'), loadChatUsers(true), loadChatNotifications()]);
