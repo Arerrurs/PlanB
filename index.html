@@ -320,6 +320,7 @@
           </div>
           <label class="field chat-search-field chat-search-field--compact chat-search-field--clean">
             <span id="chatSearchLabel">Поиск</span>
+            <span class="material-symbols-outlined chat-search-icon">search</span>
             <input id="chatUserSearch" type="text" placeholder="Найти пользователя или контакт" />
           </label>
           <div id="chatUserList" class="chat-user-list"></div>
@@ -333,6 +334,7 @@
                 <button id="chatBackBtn" class="icon-btn chat-back-btn" type="button" aria-label="Назад" title="Назад">
                   <span class="material-symbols-outlined">arrow_back</span>
                 </button>
+                <span id="chatHeaderAvatar" class="chat-avatar chat-header-avatar">?</span>
                 <div class="chat-thread-title-wrap">
                   <strong id="chatConversationTitle">—</strong>
                   <div id="chatThreadMeta" class="chat-thread-meta"></div>
@@ -349,7 +351,8 @@
             </div>
             <div id="chatMessages" class="chat-messages"></div>
             <form id="chatForm" class="chat-form">
-              <textarea id="chatMessageInput" rows="2" placeholder="Напишите сообщение..."></textarea>
+              <span class="material-symbols-outlined chat-attach-icon">attach_file</span>
+              <textarea id="chatMessageInput" rows="2" placeholder="Написать сообщение..."></textarea>
               <button id="chatSendBtn" class="text-btn primary chat-send-btn" type="button" aria-label="Отправить"><span class="material-symbols-outlined">send</span></button>
             </form>
           </div>

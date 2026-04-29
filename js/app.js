@@ -140,6 +140,7 @@ const els = {
   chatRequestPanel: $('chatRequestPanel'),
   chatThread: $('chatThread'),
   chatConversationTitle: $('chatConversationTitle'),
+  chatHeaderAvatar: $('chatHeaderAvatar'),
   chatThreadMeta: $('chatThreadMeta'),
   chatBackBtn: $('chatBackBtn'),
   openAliasModalBtn: $('openAliasModalBtn'),
@@ -1584,6 +1585,7 @@ function resetChatView(message='Выберите контакт или найд�
   state.activeChatRelation = null;
   state.activeRequestId = null;
   if (els.chatConversationTitle) els.chatConversationTitle.textContent = 'Чат';
+  if (els.chatHeaderAvatar) els.chatHeaderAvatar.textContent = '?';
   if (els.chatThreadMeta) els.chatThreadMeta.textContent = '';
   if (els.chatMessages) els.chatMessages.innerHTML = '';
   if (els.chatMessageInput) els.chatMessageInput.value = '';
@@ -1668,6 +1670,7 @@ async function selectChatUser(userId) {
   renderChatUsers();
   setChatMobileView('thread');
   els.chatConversationTitle.textContent = getChatDisplayName(entry);
+  if (els.chatHeaderAvatar) els.chatHeaderAvatar.textContent = (getChatDisplayName(entry) || '?').trim().slice(0, 1).toUpperCase();
   if (els.chatThreadMeta) els.chatThreadMeta.textContent = entry.is_contact ? 'Контакт' : (entry.email || '');
   if (els.chatAliasInput) els.chatAliasInput.value = entry.alias || getLocalAlias(entry.id) || '';
   updateChatActionButtons(entry);
@@ -1785,6 +1788,7 @@ async function saveChatAlias() {
     state.activeChatPeer = (state.chatUsers || []).find((item) => item.id === state.activeChatPeer.id) || state.activeChatPeer;
     renderChatUsers();
     els.chatConversationTitle.textContent = getChatDisplayName(state.activeChatPeer);
+    if (els.chatHeaderAvatar) els.chatHeaderAvatar.textContent = (getChatDisplayName(state.activeChatPeer) || '?').trim().slice(0, 1).toUpperCase();
     setMessage(els.aliasMessage, 'Имя контакта сохранено.', 'success');
     setMessage(els.chatMessageStatus, 'Имя контакта сохранено.', 'success');
     closeModal(els.aliasModal);
