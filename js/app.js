@@ -1699,7 +1699,14 @@ async function loadActiveChatMessages(silent = false) {
   if (!silent) setMessage(els.chatMessageStatus, '');
   const { data, error } = await withTimeout(supabase.rpc('list_conversation_messages', { p_conversation_id: state.activeConversationId }), 'load conversation messages');
   if (error) return setMessage(els.chatMessageStatus, normalizeError(error), 'error');
-  const messages = data || [];
+  const rawMessages = data || [];
+  const seenMessages = new Set();
+  const messages = rawMessages.filter((item) => {
+    const key = item.id || item.message_id || `${item.sender_id || ''}|${item.created_at || ''}|${item.text || ''}`;
+    if (seenMessages.has(key)) return false;
+    seenMessages.add(key);
+    return true;
+  });
   if (!messages.length) {
     els.chatMessages.innerHTML = '<div class="settings-note">Пока нет сообщений. Напишите первым.</div>';
   } else {
