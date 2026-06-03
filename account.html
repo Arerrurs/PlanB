@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Мудрость дня — кабинет</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="workspace-page">
+    <aside class="workspace-sidebar">
+      <a class="workspace-brand" href="./index.html">
+        <span class="material-symbols-outlined">auto_stories</span>
+        <strong>Мудрость дня</strong>
+      </a>
+      <nav class="workspace-nav" aria-label="Кабинет">
+        <a class="active" href="#overview"><span class="material-symbols-outlined">dashboard</span>Обзор</a>
+        <a href="#collections"><span class="material-symbols-outlined">bookmarks</span>Коллекции</a>
+        <a href="#suggestions"><span class="material-symbols-outlined">rate_review</span>Предложенные</a>
+        <a href="./chat.html"><span class="material-symbols-outlined">forum</span>Мессенджер <span id="accountChatBadge" class="chat-badge" hidden>0</span></a>
+        <a id="accountAdminLink" class="admin-only-link" href="./admin.html" hidden><span class="material-symbols-outlined">admin_panel_settings</span>Админка</a>
+      </nav>
+      <button id="accountSignOutBtn" class="workspace-danger" type="button">
+        <span class="material-symbols-outlined">logout</span>
+        Выйти
+      </button>
+    </aside>
+
+    <section class="workspace-main">
+      <header class="workspace-hero" id="overview">
+        <div>
+          <p class="workspace-kicker">Личный кабинет</p>
+          <h1 id="accountTitle">Загрузка профиля...</h1>
+          <p id="accountSubtitle">Собираем статистику и настройки.</p>
+        </div>
+        <div class="workspace-actions">
+          <a class="text-btn" href="./index.html"><span class="material-symbols-outlined">home</span>Главная</a>
+          <button id="accountThemeBtn" class="icon-btn" type="button" title="Сменить тему" aria-label="Сменить тему">
+            <span class="material-symbols-outlined">contrast</span>
+          </button>
+        </div>
+      </header>
+
+      <div id="accountMessage" class="message" aria-live="polite"></div>
+
+      <section class="dashboard-grid">
+        <article class="dashboard-card">
+          <span class="material-symbols-outlined">thumb_up</span>
+          <div>
+            <strong id="dashLiked">0</strong>
+            <p>лайкнутых цитат</p>
+          </div>
+        </article>
+        <article class="dashboard-card">
+          <span class="material-symbols-outlined">thumb_down</span>
+          <div>
+            <strong id="dashDisliked">0</strong>
+            <p>дизлайкнутых цитат</p>
+          </div>
+        </article>
+        <article class="dashboard-card">
+          <span class="material-symbols-outlined">rate_review</span>
+          <div>
+            <strong id="dashSuggestions">0</strong>
+            <p>предложений</p>
+          </div>
+        </article>
+        <article class="dashboard-card">
+          <span class="material-symbols-outlined">bookmarks</span>
+          <div>
+            <strong id="dashCollections">0</strong>
+            <p>коллекций</p>
+          </div>
+        </article>
+      </section>
+
+      <section class="workspace-section">
+        <div class="section-head">
+          <div>
+            <h2>Настройки поведения</h2>
+            <p>Эти переключатели управляют тем, как работает главная карточка.</p>
+          </div>
+        </div>
+        <div class="toggle-grid">
+          <label class="toggle-card">
+            <input id="accountDisableTimer" type="checkbox">
+            <span class="toggle-card-icon material-symbols-outlined">timer_off</span>
+            <span>
+              <strong>Не использовать таймер</strong>
+              <small>Цитата не будет автоматически меняться каждую минуту.</small>
+            </span>
+            <i></i>
+          </label>
+          <label class="toggle-card">
+            <input id="accountClickRefresh" type="checkbox">
+            <span class="toggle-card-icon material-symbols-outlined">touch_app</span>
+            <span>
+              <strong>Обновлять по нажатию</strong>
+              <small>Нажатие на карточку будет подгружать новую цитату.</small>
+            </span>
+            <i></i>
+          </label>
+          <label class="toggle-card">
+            <input id="accountPrivacyMode" type="checkbox">
+            <span class="toggle-card-icon material-symbols-outlined">visibility_off</span>
+            <span>
+              <strong>Скрытый режим</strong>
+              <small>Цитата скрывается, если страница какое-то время открыта.</small>
+            </span>
+            <i></i>
+          </label>
+        </div>
+      </section>
+
+      <section class="workspace-section">
+        <div class="section-head">
+          <div>
+            <h2>Профиль</h2>
+            <p>Логин, почта и акцентные цвета.</p>
+          </div>
+          <button id="saveAccountSettingsBtn" class="text-btn primary" type="button">Сохранить</button>
+        </div>
+        <form id="accountSettingsForm" class="account-settings-grid">
+          <label class="field">
+            <span>Логин</span>
+            <input id="accountUsername" type="text" autocomplete="username" placeholder="dark_reader">
+          </label>
+          <label class="field">
+            <span>Новая почта</span>
+            <input id="accountEmail" type="email" autocomplete="email" placeholder="newmail@example.com">
+          </label>
+          <label class="field">
+            <span>Новый пароль</span>
+            <input id="accountPassword" type="password" autocomplete="new-password" placeholder="Оставьте пустым">
+          </label>
+          <label class="field inline-field">
+            <span>Цвет светлой темы</span>
+            <input id="accountLightAccent" type="color" value="#a855f7">
+          </label>
+          <label class="field inline-field">
+            <span>Цвет тёмной темы</span>
+            <input id="accountDarkAccent" type="color" value="#f472b6">
+          </label>
+        </form>
+      </section>
+
+      <section class="workspace-section" id="collections">
+        <div class="section-head">
+          <div>
+            <h2>Коллекции</h2>
+            <p>Подборки цитат по темам. Например: “учёба”, “мотивация”, “жизнь”.</p>
+          </div>
+        </div>
+        <form id="collectionForm" class="inline-create-form">
+          <input id="collectionTitle" type="text" placeholder="Название коллекции">
+          <input id="collectionDescription" type="text" placeholder="Описание, необязательно">
+          <button class="text-btn primary" type="submit">Создать</button>
+        </form>
+        <div id="collectionsList" class="collection-grid"></div>
+      </section>
+
+      <section class="workspace-section" id="suggestions">
+        <div class="section-head">
+          <div>
+            <h2>Предложенные цитаты</h2>
+            <p>Здесь видно, что приняли, что отклонили и почему.</p>
+          </div>
+        </div>
+        <form id="accountSuggestionForm" class="suggestion-inline-form">
+          <textarea id="accountSuggestionText" rows="4" placeholder="Предложить новую цитату..."></textarea>
+          <button class="text-btn primary" type="submit">Отправить на модерацию</button>
+        </form>
+        <div id="accountSuggestionsList" class="suggestion-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="./js/account.js"></script>
+</body>
+</html>

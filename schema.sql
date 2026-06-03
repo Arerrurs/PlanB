@@ -38,15 +38,35 @@ create table if not exists public.quote_suggestions (
   text text not null,
   user_id uuid references public.profiles(id) on delete set null,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  rejection_reason text,
   reviewed_by uuid references public.profiles(id) on delete set null,
   reviewed_at timestamptz,
   created_at timestamptz not null default now()
+);
+
+create table if not exists public.quote_collections (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  title text not null,
+  description text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, title)
+);
+
+create table if not exists public.quote_collection_items (
+  collection_id uuid not null references public.quote_collections(id) on delete cascade,
+  quote_id uuid not null references public.quotes(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (collection_id, quote_id)
 );
 
 alter table public.profiles enable row level security;
 alter table public.quotes enable row level security;
 alter table public.quote_votes enable row level security;
 alter table public.quote_suggestions enable row level security;
+alter table public.quote_collections enable row level security;
+alter table public.quote_collection_items enable row level security;
 
 create or replace function public.is_admin(uid uuid default auth.uid())
 returns boolean
@@ -149,6 +169,7 @@ using (auth.uid() = user_id or public.is_admin(auth.uid()));
 
 drop policy if exists "suggestions insert anyone" on public.quote_suggestions;
 drop policy if exists "suggestions read admin" on public.quote_suggestions;
+drop policy if exists "suggestions read own or admin" on public.quote_suggestions;
 drop policy if exists "suggestions admin update" on public.quote_suggestions;
 drop policy if exists "suggestions admin delete" on public.quote_suggestions;
 
@@ -160,9 +181,9 @@ with check (
   or user_id is null
 );
 
-create policy "suggestions read admin"
+create policy "suggestions read own or admin"
 on public.quote_suggestions for select
-using (public.is_admin(auth.uid()));
+using (auth.uid() = user_id or public.is_admin(auth.uid()));
 
 create policy "suggestions admin update"
 on public.quote_suggestions for update
@@ -172,6 +193,50 @@ with check (public.is_admin(auth.uid()));
 create policy "suggestions admin delete"
 on public.quote_suggestions for delete
 using (public.is_admin(auth.uid()));
+
+create policy "collections read own"
+on public.quote_collections for select
+using (auth.uid() = user_id);
+
+create policy "collections insert own"
+on public.quote_collections for insert
+with check (auth.uid() = user_id);
+
+create policy "collections update own"
+on public.quote_collections for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "collections delete own"
+on public.quote_collections for delete
+using (auth.uid() = user_id);
+
+create policy "collection items read own"
+on public.quote_collection_items for select
+using (
+  exists (
+    select 1 from public.quote_collections c
+    where c.id = collection_id and c.user_id = auth.uid()
+  )
+);
+
+create policy "collection items insert own"
+on public.quote_collection_items for insert
+with check (
+  exists (
+    select 1 from public.quote_collections c
+    where c.id = collection_id and c.user_id = auth.uid()
+  )
+);
+
+create policy "collection items delete own"
+on public.quote_collection_items for delete
+using (
+  exists (
+    select 1 from public.quote_collections c
+    where c.id = collection_id and c.user_id = auth.uid()
+  )
+);
 
 
 create or replace function public.admin_quote_vote_details(p_quote_id uuid, p_vote text)
@@ -198,8 +263,10 @@ $$;
 grant execute on function public.admin_quote_vote_details(uuid, text) to authenticated;
 
 
+drop function if exists public.admin_list_suggestions();
+
 create or replace function public.admin_list_suggestions()
-returns table(id uuid, text text, status text, created_at timestamptz, user_id uuid, email text)
+returns table(id uuid, text text, status text, created_at timestamptz, user_id uuid, email text, rejection_reason text)
 language plpgsql
 security definer
 set search_path = public
@@ -210,7 +277,7 @@ begin
   end if;
 
   return query
-  select qs.id, qs.text, qs.status, qs.created_at, qs.user_id, p.email
+  select qs.id, qs.text, qs.status, qs.created_at, qs.user_id, p.email, qs.rejection_reason
   from public.quote_suggestions qs
   left join public.profiles p on p.id = qs.user_id
   order by qs.created_at desc;

@@ -48,6 +48,7 @@ const state = {
   activeChatPeer: null,
   activeChatRelation: null,
   activeRequestId: null,
+  chatSending: false,
   chatPollTimer: null,
   chatNoticeTimer: null,
 };
@@ -79,6 +80,7 @@ const els = {
   copyBtn: $('copyBtn'),
   shareBtn: $('shareBtn'),
   shareCardBtn: $('shareCardBtn'),
+  collectionBtn: $('collectionBtn'),
   likeBtn: $('likeBtn'),
   dislikeBtn: $('dislikeBtn'),
 
@@ -87,6 +89,7 @@ const els = {
   accountModal: $('accountModal'),
   settingsModal: $('settingsModal'),
   suggestionModal: $('suggestionModal'),
+  collectionModal: $('collectionModal'),
   favoritesModal: $('favoritesModal'),
   dislikedModal: $('dislikedModal'),
   statsModal: $('statsModal'),
@@ -175,6 +178,10 @@ const els = {
   suggestionText: $('suggestionText'),
   suggestionBtn: $('suggestionBtn'),
   suggestionMessage: $('suggestionMessage'),
+  quickCollectionForm: $('quickCollectionForm'),
+  quickCollectionTitle: $('quickCollectionTitle'),
+  quickCollectionsList: $('quickCollectionsList'),
+  collectionMessage: $('collectionMessage'),
 
   favoritesList: $('favoritesList'),
   favoritesMessage: $('favoritesMessage'),
@@ -1366,6 +1373,85 @@ async function sendSuggestion() {
   }
 }
 
+async function loadQuickCollections() {
+  if (!state.user || !els.quickCollectionsList) return;
+  if (!state.currentQuote?.id) {
+    els.quickCollectionsList.innerHTML = '<div class="settings-note">Сначала загрузите цитату.</div>';
+    return;
+  }
+
+  setMessage(els.collectionMessage, '');
+  const { data, error } = await withTimeout(
+    supabase
+      .from('quote_collections')
+      .select('id,title,description,quote_collection_items(quote_id)')
+      .eq('user_id', state.user.id)
+      .order('updated_at', { ascending: false }),
+    'load collections'
+  );
+  if (error) {
+    els.quickCollectionsList.innerHTML = '<div class="settings-note">Не удалось загрузить коллекции.</div>';
+    return;
+  }
+
+  if (!data?.length) {
+    els.quickCollectionsList.innerHTML = '<div class="settings-note">Коллекций пока нет. Создайте первую выше.</div>';
+    return;
+  }
+
+  els.quickCollectionsList.innerHTML = data.map((item) => {
+    const hasQuote = (item.quote_collection_items || []).some((row) => row.quote_id === state.currentQuote.id);
+    return `
+      <button class="collection-picker-item ${hasQuote ? 'active' : ''}" type="button" data-add-to-collection="${item.id}">
+        <span class="material-symbols-outlined">${hasQuote ? 'bookmark_added' : 'bookmark_add'}</span>
+        <span>
+          <strong>${escapeHtml(item.title)}</strong>
+          <small>${hasQuote ? 'Цитата уже здесь' : escapeHtml(item.description || 'Добавить текущую цитату')}</small>
+        </span>
+      </button>`;
+  }).join('');
+}
+
+async function openCollectionModal() {
+  if (!state.user) {
+    setMessage(els.globalMessage, 'Сначала войдите в аккаунт.', 'info');
+    openModal(els.authModal);
+    return;
+  }
+  openModal(els.collectionModal);
+  await loadQuickCollections();
+}
+
+async function createQuickCollection(event) {
+  event.preventDefault();
+  const title = els.quickCollectionTitle?.value.trim();
+  if (!title) return setMessage(els.collectionMessage, 'Введите название коллекции.', 'error');
+
+  const { error } = await withTimeout(
+    supabase.from('quote_collections').insert({ user_id: state.user.id, title }),
+    'create collection'
+  );
+  if (error) return setMessage(els.collectionMessage, normalizeError(error), 'error');
+  els.quickCollectionTitle.value = '';
+  setMessage(els.collectionMessage, 'Коллекция создана.', 'success');
+  await loadQuickCollections();
+}
+
+async function addCurrentQuoteToCollection(collectionId) {
+  if (!collectionId || !state.currentQuote?.id) return;
+  const { error } = await withTimeout(
+    supabase.from('quote_collection_items').upsert({
+      collection_id: collectionId,
+      quote_id: state.currentQuote.id,
+    }),
+    'add quote to collection'
+  );
+  if (error) return setMessage(els.collectionMessage, normalizeError(error), 'error');
+  setMessage(els.collectionMessage, 'Цитата добавлена в коллекцию.', 'success');
+  showToast('Цитата добавлена в коллекцию.', 'success');
+  await loadQuickCollections();
+}
+
 async function persistQuickPreference(field, value) {
   if (!state.user) return;
   try {
@@ -1730,10 +1816,12 @@ async function loadActiveChatMessages(silent = false) {
 }
 
 async function sendChatMessage() {
+  if (state.chatSending) return;
   const text = els.chatMessageInput?.value || '';
   const trimmed = text.trim();
   if (!state.activeConversationId) return setMessage(els.chatMessageStatus, 'Сначала выберите контакт.', 'error');
   if (!trimmed) return;
+  state.chatSending = true;
   els.chatSendBtn.disabled = true;
   setMessage(els.chatMessageStatus, 'Отправляем...');
   try {
@@ -1745,6 +1833,7 @@ async function sendChatMessage() {
   } catch (error) {
     setMessage(els.chatMessageStatus, normalizeError(error), 'error');
   } finally {
+    state.chatSending = false;
     els.chatSendBtn.disabled = false;
   }
 }
@@ -2026,8 +2115,7 @@ function bindEvents() {
 
   els.accountBtn?.addEventListener('click', () => {
     if (state.user) {
-      updateAuthUI();
-      openModal(els.accountModal);
+      window.location.href = './account.html';
     } else {
       openModal(els.authModal);
     }
@@ -2061,6 +2149,7 @@ function bindEvents() {
   els.copyBtn?.addEventListener('click', copyQuote);
   els.shareBtn?.addEventListener('click', shareQuoteText);
   els.shareCardBtn?.addEventListener('click', shareQuoteCard);
+  els.collectionBtn?.addEventListener('click', openCollectionModal);
   els.likeBtn?.addEventListener('click', () => vote('like'));
   els.dislikeBtn?.addEventListener('click', () => vote('dislike'));
 
@@ -2072,7 +2161,7 @@ function bindEvents() {
   els.openSuggestionBtn?.addEventListener('click', () => openModal(els.suggestionModal));
   els.openFavoritesBtn?.addEventListener('click', () => openFavorites(false));
   els.openDislikedBtn?.addEventListener('click', () => openDisliked(false));
-  els.openChatBtn?.addEventListener('click', openChatModal);
+  els.openChatBtn?.addEventListener('click', () => { window.location.href = './chat.html'; });
   els.chatBackBtn?.addEventListener('click', () => resetChatView());
 
   els.likedFilterControl?.addEventListener('click', async (event) => {
@@ -2111,21 +2200,19 @@ function bindEvents() {
     if (action === 'accept') respondContactRequest(requestId, true, userId);
     if (action === 'reject') respondContactRequest(requestId, false, userId);
   });
-  els.chatSendBtn?.addEventListener('click', sendChatMessage);
+  if (els.chatSendBtn) els.chatSendBtn.type = 'submit';
   els.openAliasModalBtn?.addEventListener('click', openAliasModal);
   els.removeContactBtn?.addEventListener('click', removeChatContact);
   els.clearChatBtn?.addEventListener('click', clearActiveChatConversation);
   els.saveChatAliasBtn?.addEventListener('click', saveChatAlias);
-  els.chatMessageInput?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      sendChatMessage();
-    }
-  });
-
   els.saveSettingsBtn?.addEventListener('click', saveSettings);
   els.resetAccentBtn?.addEventListener('click', resetAccents);
   els.suggestionBtn?.addEventListener('click', sendSuggestion);
+  els.quickCollectionForm?.addEventListener('submit', createQuickCollection);
+  els.quickCollectionsList?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-add-to-collection]');
+    if (button) addCurrentQuoteToCollection(button.dataset.addToCollection);
+  });
 
   bindVoteListHandlers(els.favoritesList);
   bindVoteListHandlers(els.dislikedList);

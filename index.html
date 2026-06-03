@@ -48,6 +48,9 @@
           <button id="shareCardBtn" class="icon-btn" type="button" aria-label="Поделиться карточкой" title="Карточка">
             <span class="material-symbols-outlined">image</span>
           </button>
+          <button id="collectionBtn" class="icon-btn" type="button" aria-label="Добавить в коллекцию" title="В коллекцию">
+            <span class="material-symbols-outlined">bookmark_add</span>
+          </button>
         </div>
         <div class="right-actions">
           <button id="likeBtn" class="icon-btn vote-btn" type="button" aria-label="Нравится" title="Нравится">
@@ -250,6 +253,26 @@
           </div>
           <div id="suggestionMessage" class="message" aria-live="polite"></div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="collectionModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="collectionModal"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>Добавить в коллекцию</h2>
+        <button class="icon-btn" type="button" data-close="collectionModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="quickCollectionForm" class="inline-create-form">
+          <input id="quickCollectionTitle" type="text" placeholder="Новая коллекция">
+          <button class="text-btn primary" type="submit">Создать</button>
+        </form>
+        <div id="collectionMessage" class="message" aria-live="polite"></div>
+        <div id="quickCollectionsList" class="collection-picker"></div>
       </div>
     </div>
   </div>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Мудрость дня — мессенджер</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="messenger-page">
+    <aside class="messenger-sidebar">
+      <header class="messenger-brand">
+        <a class="icon-btn" href="./account.html" aria-label="Назад в кабинет" title="Кабинет">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <div>
+          <h1>Мессенджер</h1>
+          <p id="chatSummary">Загрузка...</p>
+        </div>
+        <a class="icon-btn" href="./index.html" aria-label="На главную" title="Главная">
+          <span class="material-symbols-outlined">home</span>
+        </a>
+      </header>
+
+      <div class="messenger-tabs" role="tablist" aria-label="Разделы чата">
+        <button class="active" type="button" data-chat-tab="contacts"><span class="material-symbols-outlined">group</span>Контакты</button>
+        <button type="button" data-chat-tab="requests"><span class="material-symbols-outlined">mail</span>Запросы <span id="chatRequestsBadge" class="chat-badge" hidden>0</span></button>
+        <button type="button" data-chat-tab="users"><span class="material-symbols-outlined">search</span>Поиск</button>
+      </div>
+
+      <label class="messenger-search">
+        <span class="material-symbols-outlined">search</span>
+        <input id="chatUserSearch" type="search" placeholder="Найти пользователя или контакт">
+      </label>
+
+      <div id="chatUserList" class="messenger-list"></div>
+    </aside>
+
+    <section class="messenger-pane">
+      <div id="chatEmptyState" class="messenger-empty">
+        <span class="material-symbols-outlined">forum</span>
+        <h2>Выберите диалог</h2>
+        <p>Контакты и новые запросы будут отображаться слева.</p>
+      </div>
+
+      <div id="chatRequestPanel" class="messenger-request" hidden></div>
+
+      <div id="chatThread" class="messenger-thread" hidden>
+        <header class="messenger-thread-head">
+          <button id="chatBackBtn" class="icon-btn messenger-back" type="button" aria-label="Назад">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <span id="chatHeaderAvatar" class="messenger-avatar">?</span>
+          <div>
+            <h2 id="chatConversationTitle">—</h2>
+            <p id="chatThreadMeta"></p>
+          </div>
+          <details class="chat-menu">
+            <summary class="icon-btn chat-action-btn" aria-label="Действия" title="Действия">
+              <span class="material-symbols-outlined">more_horiz</span>
+            </summary>
+            <div class="chat-menu-popover">
+              <button id="openAliasModalBtn" class="chat-menu-item" type="button">Переименовать</button>
+              <button id="clearChatBtn" class="chat-menu-item" type="button" hidden>Очистить чат</button>
+              <button id="removeContactBtn" class="chat-menu-item danger" type="button" hidden>Удалить контакт</button>
+            </div>
+          </details>
+        </header>
+
+        <div id="chatMessages" class="messenger-messages"></div>
+
+        <form id="chatForm" class="messenger-form">
+          <textarea id="chatMessageInput" rows="1" placeholder="Написать сообщение..."></textarea>
+          <button id="chatSendBtn" class="text-btn primary messenger-send" type="submit" aria-label="Отправить">
+            <span class="material-symbols-outlined">send</span>
+          </button>
+        </form>
+      </div>
+
+      <div id="chatMessageStatus" class="message messenger-status" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <div id="aliasModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="aliasModal"></div>
+    <div class="modal-dialog slim">
+      <div class="modal-header">
+        <h2>Имя контакта</h2>
+        <button class="icon-btn" type="button" data-close="aliasModal" aria-label="Закрыть">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="aliasForm" class="stack-form">
+          <div class="settings-note muted-note">Это имя видно только вам.</div>
+          <label class="field">
+            <span>Моё имя для контакта</span>
+            <input id="chatAliasInput" type="text" placeholder="Например, Староста" />
+          </label>
+          <div class="row-actions single">
+            <button id="saveChatAliasBtn" class="text-btn primary" type="button">Сохранить имя</button>
+          </div>
+          <div id="aliasMessage" class="message" aria-live="polite"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="./js/chat.js"></script>
+</body>
+</html>

@@ -15,6 +15,7 @@ const els = {
   adminThemeBtn: $('adminThemeBtn'),
   refreshAdminBtn: $('refreshAdminBtn'),
   adminStatus: $('adminStatus'),
+  adminPageTitle: $('adminPageTitle'),
   accessDenied: $('accessDenied'),
   adminContent: $('adminContent'),
   statQuotes: $('statQuotes'),
@@ -41,6 +42,12 @@ const els = {
   voteDetailsTitle: $('voteDetailsTitle'),
   voteDetailsList: $('voteDetailsList'),
   voteDetailsMessage: $('voteDetailsMessage'),
+  rejectSuggestionModal: $('rejectSuggestionModal'),
+  rejectSuggestionForm: $('rejectSuggestionForm'),
+  rejectSuggestionId: $('rejectSuggestionId'),
+  rejectSuggestionReason: $('rejectSuggestionReason'),
+  confirmRejectSuggestionBtn: $('confirmRejectSuggestionBtn'),
+  rejectSuggestionMessage: $('rejectSuggestionMessage'),
 };
 
 let adminUser = null;
@@ -141,6 +148,24 @@ function bindPanelToggles() {
       icon.textContent = collapsed ? 'expand_more' : 'expand_less';
     });
   });
+}
+
+function setAdminTab(tab) {
+  const labels = {
+    stats: 'Обзор',
+    addQuote: 'Добавить цитату',
+    quotes: 'Цитаты',
+    suggestions: 'Модерация',
+    archive: 'Архив',
+    users: 'Пользователи',
+  };
+  document.querySelectorAll('[data-admin-tab]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.adminTab === tab);
+  });
+  document.querySelectorAll('.admin-tab-panel').forEach((panel) => {
+    panel.classList.toggle('active', panel.dataset.panel === tab);
+  });
+  if (els.adminPageTitle) els.adminPageTitle.textContent = labels[tab] || 'Админка';
 }
 
 async function checkAccess() {
@@ -418,6 +443,7 @@ async function loadSuggestions() {
             <span>${item.reviewed_at ? new Date(item.reviewed_at).toLocaleString('ru-RU') : new Date(item.created_at).toLocaleString('ru-RU')}</span>
             <span>предложил: ${escapeHtml(item.email || 'гость')}</span>
           </div>
+          ${item.rejection_reason ? `<div class="admin-item__reason">Причина: ${escapeHtml(item.rejection_reason)}</div>` : ''}
         </article>
       `).join('');
     }
@@ -486,6 +512,42 @@ async function saveEditedQuote() {
   }
 }
 
+function openRejectSuggestionModal(id) {
+  if (!id) return;
+  els.rejectSuggestionId.value = id;
+  els.rejectSuggestionReason.value = '';
+  setMessage(els.rejectSuggestionMessage, '');
+  openModal(els.rejectSuggestionModal);
+}
+
+async function confirmRejectSuggestion() {
+  const id = els.rejectSuggestionId.value;
+  const reason = els.rejectSuggestionReason.value.trim();
+  if (!id) return;
+  if (!reason) return setMessage(els.rejectSuggestionMessage, 'Напишите причину отклонения.', 'error');
+
+  els.confirmRejectSuggestionBtn.disabled = true;
+  setMessage(els.rejectSuggestionMessage, 'Сохраняем...');
+  try {
+    const { error } = await supabase
+      .from('quote_suggestions')
+      .update({
+        status: 'rejected',
+        rejection_reason: reason,
+        reviewed_by: adminUser.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (error) throw error;
+    closeModal(els.rejectSuggestionModal);
+    await refreshAll();
+  } catch (error) {
+    setMessage(els.rejectSuggestionMessage, normalizeError(error), 'error');
+  } finally {
+    els.confirmRejectSuggestionBtn.disabled = false;
+  }
+}
+
 async function handleAdminAction(event) {
   const button = event.target.closest('[data-action]');
   if (!button) return;
@@ -550,11 +612,8 @@ async function handleAdminAction(event) {
     }
 
     if (action === 'reject-suggestion') {
-      const { error } = await supabase
-        .from('quote_suggestions')
-        .update({ status: 'rejected', reviewed_by: adminUser.id, reviewed_at: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
+      openRejectSuggestionModal(id);
+      return;
     }
 
     if (action === 'delete-suggestion') {
@@ -593,10 +652,18 @@ async function init() {
   els.adminThemeBtn.addEventListener('click', () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
   els.refreshAdminBtn.addEventListener('click', refreshAll);
   els.addQuoteBtn.addEventListener('click', addQuote);
+  document.querySelectorAll('[data-admin-tab]').forEach((button) => {
+    button.addEventListener('click', () => setAdminTab(button.dataset.adminTab));
+  });
   els.quotesList.addEventListener('click', handleAdminAction);
   els.suggestionsList.addEventListener('click', handleAdminAction);
   els.archiveList?.addEventListener('click', handleAdminAction);
   els.saveQuoteBtn.addEventListener('click', saveEditedQuote);
+  els.confirmRejectSuggestionBtn?.addEventListener('click', confirmRejectSuggestion);
+  els.rejectSuggestionForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    confirmRejectSuggestion();
+  });
   els.quoteSortSelect?.addEventListener('change', loadQuotes);
   els.quoteSearchInput?.addEventListener('input', () => {
     window.clearTimeout(els.quoteSearchInput._timer);
@@ -608,14 +675,7 @@ async function init() {
   if (!ok) return;
 
   await refreshAll();
-  document.querySelectorAll('[data-panel-content]').forEach((content) => {
-    if (content.dataset.panelContent === 'stats') return;
-    content.hidden = true;
-    const panel = document.querySelector(`[data-panel="${content.dataset.panelContent}"]`);
-    const icon = document.querySelector(`[data-panel-toggle="${content.dataset.panelContent}"] .material-symbols-outlined`);
-    if (panel) panel.classList.add('collapsed');
-    if (icon) icon.textContent = 'expand_more';
-  });
+  setAdminTab('stats');
   window.setInterval(refreshAll, 30000);
 }
 
