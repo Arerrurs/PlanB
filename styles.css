@@ -2480,3 +2480,724 @@ a { color: inherit; text-decoration: none; }
   #chatModal .chat-form textarea { height: 46px !important; min-height: 46px !important; }
   #chatModal .chat-send-btn { width: 46px !important; height: 46px !important; min-width: 46px !important; }
 }
+
+/* v22 — messenger-grade chat refresh */
+#chatModal {
+  --chat-radius: 8px;
+  --chat-sidebar: clamp(300px, 32vw, 380px);
+  --chat-head: 72px;
+  --chat-form-h: 74px;
+}
+
+#chatModal .modal-backdrop {
+  background: rgba(15, 23, 42, .46) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+#chatModal .modal-dialog.chat-dialog {
+  width: min(1180px, calc(100vw - 32px)) !important;
+  height: min(820px, calc(100dvh - 32px)) !important;
+  max-height: calc(100dvh - 32px) !important;
+  border-radius: var(--chat-radius) !important;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 26px 80px rgba(15, 23, 42, .24) !important;
+  overflow: hidden !important;
+}
+
+#chatModal .modal-header {
+  height: 64px !important;
+  min-height: 64px !important;
+  padding: 0 18px 0 22px !important;
+  border-bottom: 1px solid var(--border) !important;
+  background: color-mix(in srgb, var(--surface) 94%, var(--surface-2)) !important;
+}
+
+#chatModal .modal-header h2 {
+  font-size: 22px !important;
+  font-weight: 850 !important;
+  letter-spacing: 0 !important;
+}
+
+#chatModal .modal-header .icon-btn {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: var(--chat-radius) !important;
+}
+
+#chatModal .modal-body.chat-layout,
+#chatModal .modal-body.chat-layout--compact {
+  height: calc(100% - 64px) !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-columns: var(--chat-sidebar) minmax(0, 1fr) !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+#chatModal .chat-sidebar {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  padding: 14px !important;
+  gap: 12px !important;
+  border-right: 1px solid var(--border) !important;
+  background: color-mix(in srgb, var(--surface-2) 62%, var(--surface)) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+#chatModal .chat-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding: 4px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--chat-radius) !important;
+  background: var(--surface) !important;
+}
+
+#chatModal #chatTabs[hidden] {
+  display: none !important;
+}
+
+#chatModal .chat-tab-btn {
+  min-width: 0 !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  border: 0 !important;
+  border-radius: var(--chat-radius) !important;
+  padding: 0 8px !important;
+  gap: 6px !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+}
+
+#chatModal .chat-tab-btn.active {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface)) !important;
+  color: var(--accent) !important;
+}
+
+#chatModal .chat-tab-text {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#chatModal .chat-search-field {
+  margin: 0 !important;
+}
+
+#chatModal .chat-search-field span:not(.material-symbols-outlined) {
+  display: none !important;
+}
+
+#chatModal .chat-search-field input {
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  border-radius: var(--chat-radius) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  padding: 0 14px 0 44px !important;
+  font-size: 14px !important;
+  box-shadow: none !important;
+}
+
+#chatModal .chat-search-field input:focus {
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent) !important;
+}
+
+#chatModal .chat-search-icon {
+  left: 14px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: var(--muted) !important;
+  font-size: 21px !important;
+}
+
+#chatModal .chat-user-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  padding: 0 2px 4px 0 !important;
+  scrollbar-width: thin !important;
+}
+
+#chatModal .chat-section {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+#chatModal .chat-section-title {
+  padding: 7px 6px 2px !important;
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+}
+
+#chatModal .chat-user-item {
+  width: 100% !important;
+  min-height: 66px !important;
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 8px 10px !important;
+  border-radius: var(--chat-radius) !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  text-align: left !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+#chatModal .chat-user-item:hover {
+  background: var(--surface) !important;
+  border-color: color-mix(in srgb, var(--border) 80%, transparent) !important;
+}
+
+#chatModal .chat-user-item.active {
+  background: var(--surface) !important;
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--accent) !important;
+}
+
+#chatModal .chat-avatar {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  border-radius: var(--chat-radius) !important;
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--accent) 74%, #ffffff),
+      color-mix(in srgb, var(--primary) 62%, #111827)) !important;
+  color: #fff !important;
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  letter-spacing: 0 !important;
+}
+
+#chatModal .chat-item-main {
+  min-width: 0 !important;
+}
+
+#chatModal .chat-user-name {
+  display: block !important;
+  font-size: 15px !important;
+  line-height: 1.2 !important;
+  font-weight: 850 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#chatModal .chat-user-meta {
+  display: block !important;
+  margin-top: 4px !important;
+  color: var(--muted) !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#chatModal .chat-user-count,
+#chatModal .chat-badge {
+  min-width: 22px !important;
+  height: 22px !important;
+  padding: 0 7px !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+#chatModal .chat-pane {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background:
+    linear-gradient(color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
+    radial-gradient(circle at 20% 18%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 28%),
+    radial-gradient(circle at 86% 80%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 30%),
+    var(--surface-2) !important;
+  overflow: hidden !important;
+}
+
+#chatModal .chat-empty-state {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 28px !important;
+  text-align: center !important;
+  font-size: 15px !important;
+}
+
+#chatModal .chat-request-panel {
+  margin: 18px !important;
+  border-radius: var(--chat-radius) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, .08) !important;
+}
+
+#chatModal .chat-thread {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: grid !important;
+  grid-template-rows: var(--chat-head) minmax(0, 1fr) var(--chat-form-h) !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+#chatModal #chatThread[hidden] {
+  display: none !important;
+}
+
+#chatModal .chat-thread-head,
+#chatModal .chat-thread-head--compact {
+  height: var(--chat-head) !important;
+  min-height: var(--chat-head) !important;
+  padding: 10px 16px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+#chatModal .chat-thread-head-main {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+#chatModal .chat-thread-head-main::before {
+  content: none !important;
+}
+
+#chatModal .chat-back-btn {
+  display: none !important;
+  flex: 0 0 auto !important;
+}
+
+#chatModal .chat-header-avatar {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+}
+
+#chatModal .chat-thread-title-wrap {
+  min-width: 0 !important;
+}
+
+#chatModal #chatConversationTitle {
+  display: block !important;
+  max-width: min(46vw, 460px) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 18px !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
+}
+
+#chatModal .chat-thread-meta {
+  margin-top: 3px !important;
+  color: var(--muted) !important;
+  font-size: 12px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#chatModal .chat-action-btn {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: var(--chat-radius) !important;
+}
+
+#chatModal .chat-menu {
+  position: relative !important;
+  flex: 0 0 auto !important;
+}
+
+#chatModal .chat-menu summary {
+  list-style: none !important;
+  cursor: pointer !important;
+}
+
+#chatModal .chat-menu summary::-webkit-details-marker {
+  display: none !important;
+}
+
+#chatModal .chat-menu-popover {
+  position: absolute !important;
+  right: 0 !important;
+  top: calc(100% + 8px) !important;
+  z-index: 20 !important;
+  min-width: 190px !important;
+  padding: 8px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--chat-radius) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, .18) !important;
+}
+
+#chatModal .chat-menu:not([open]) .chat-menu-popover {
+  display: none !important;
+}
+
+#chatModal .chat-menu-item {
+  width: 100% !important;
+  border: 0 !important;
+  border-radius: var(--chat-radius) !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  padding: 10px 12px !important;
+  text-align: left !important;
+  font: inherit !important;
+  cursor: pointer !important;
+}
+
+#chatModal .chat-menu-item:hover {
+  background: var(--surface-2) !important;
+}
+
+#chatModal .chat-menu-item.danger {
+  color: var(--danger) !important;
+}
+
+#chatModal .chat-messages {
+  min-height: 0 !important;
+  overflow: auto !important;
+  padding: 18px 20px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  scrollbar-width: thin !important;
+}
+
+#chatModal .chat-list-empty,
+#chatModal .chat-messages .settings-note {
+  align-self: center !important;
+  margin: auto !important;
+  max-width: 420px !important;
+  border-radius: var(--chat-radius) !important;
+  border: 1px solid var(--border) !important;
+  background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+}
+
+#chatModal .chat-date-chip {
+  align-self: center !important;
+  margin: 8px 0 !important;
+  padding: 5px 10px !important;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent) !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--surface) 88%, transparent) !important;
+  color: var(--muted) !important;
+  font-size: 12px !important;
+}
+
+#chatModal .chat-bubble {
+  align-self: flex-start !important;
+  max-width: min(72%, 560px) !important;
+  padding: 10px 12px 8px !important;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent) !important;
+  border-radius: var(--chat-radius) !important;
+  background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+  color: var(--text) !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .05) !important;
+  overflow-wrap: anywhere !important;
+}
+
+#chatModal .chat-bubble.mine {
+  align-self: flex-end !important;
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface)) !important;
+}
+
+#chatModal .chat-bubble__author {
+  display: none !important;
+}
+
+#chatModal .chat-bubble__text {
+  font-size: 14px !important;
+  line-height: 1.42 !important;
+}
+
+#chatModal .chat-bubble__meta {
+  margin-top: 5px !important;
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+#chatModal .chat-form {
+  height: var(--chat-form-h) !important;
+  min-height: var(--chat-form-h) !important;
+  margin: 0 !important;
+  padding: 10px 16px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+  display: grid !important;
+  grid-template-columns: 38px minmax(0, 1fr) 46px !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+#chatModal .chat-attach-icon {
+  width: 38px !important;
+  height: 46px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--muted) !important;
+  font-size: 23px !important;
+}
+
+#chatModal .chat-form textarea {
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  max-height: 120px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--chat-radius) !important;
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  padding: 12px 14px !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  resize: none !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+
+#chatModal .chat-form textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent) !important;
+}
+
+#chatModal .chat-send-btn {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  border-radius: var(--chat-radius) !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 25%, transparent) !important;
+}
+
+#chatModal .chat-send-btn:disabled {
+  opacity: .62 !important;
+  cursor: progress !important;
+}
+
+#chatModal .chat-send-btn .material-symbols-outlined {
+  font-size: 23px !important;
+}
+
+#chatModal #chatMessageStatus {
+  display: none !important;
+}
+
+@media (max-width: 980px) {
+  #chatModal {
+    --chat-sidebar: 300px;
+  }
+
+  #chatModal .modal-dialog.chat-dialog {
+    width: calc(100vw - 20px) !important;
+    height: calc(100dvh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+  }
+
+  #chatModal .modal-body.chat-layout,
+  #chatModal .modal-body.chat-layout--compact {
+    grid-template-columns: var(--chat-sidebar) minmax(0, 1fr) !important;
+  }
+
+  #chatModal .chat-sidebar {
+    padding: 12px !important;
+  }
+
+  #chatModal .chat-user-item {
+    min-height: 62px !important;
+  }
+
+  #chatModal .chat-messages {
+    padding: 16px !important;
+  }
+}
+
+@media (max-width: 720px) {
+  #chatModal {
+    --chat-head: 64px;
+    --chat-form-h: 68px;
+  }
+
+  #chatModal.modal {
+    inset: 0 !important;
+    padding: 0 !important;
+  }
+
+  #chatModal .modal-dialog.chat-dialog {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+  }
+
+  #chatModal .modal-header {
+    height: 58px !important;
+    min-height: 58px !important;
+    padding: 0 12px 0 16px !important;
+  }
+
+  #chatModal .modal-header h2 {
+    font-size: 20px !important;
+  }
+
+  #chatModal .modal-body.chat-layout,
+  #chatModal .modal-body.chat-layout--compact {
+    display: block !important;
+    height: calc(100dvh - 58px) !important;
+  }
+
+  #chatModal .chat-sidebar,
+  #chatModal .chat-pane {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+  }
+
+  #chatModal.chat-view-list .chat-sidebar {
+    display: flex !important;
+  }
+
+  #chatModal.chat-view-list .chat-pane {
+    display: none !important;
+  }
+
+  #chatModal.chat-view-thread .chat-sidebar {
+    display: none !important;
+  }
+
+  #chatModal.chat-view-thread .chat-pane {
+    display: flex !important;
+  }
+
+  #chatModal .chat-back-btn {
+    display: inline-flex !important;
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  #chatModal .chat-thread-head,
+  #chatModal .chat-thread-head--compact {
+    padding: 8px 10px !important;
+  }
+
+  #chatModal .chat-header-avatar {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+  }
+
+  #chatModal #chatConversationTitle {
+    max-width: calc(100vw - 170px) !important;
+    font-size: 16px !important;
+  }
+
+  #chatModal .chat-thread-meta {
+    font-size: 11px !important;
+  }
+
+  #chatModal .chat-action-btn {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  #chatModal .chat-messages {
+    padding: 12px !important;
+    gap: 7px !important;
+  }
+
+  #chatModal .chat-bubble {
+    max-width: 88% !important;
+    padding: 9px 11px 7px !important;
+  }
+
+  #chatModal .chat-form {
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+    grid-template-columns: 32px minmax(0, 1fr) 44px !important;
+    gap: 8px !important;
+  }
+
+  #chatModal .chat-attach-icon {
+    width: 32px !important;
+    height: 44px !important;
+  }
+
+  #chatModal .chat-form textarea {
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 11px 12px !important;
+  }
+
+  #chatModal .chat-send-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+  }
+}
