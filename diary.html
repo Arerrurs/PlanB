@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Мудрость дня — дневник</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="diary-page">
+    <aside class="diary-sidebar">
+      <a class="workspace-brand" href="./account.html">
+        <span class="material-symbols-outlined">edit_note</span>
+        <strong>Дневник</strong>
+      </a>
+
+      <div class="diary-search">
+        <label class="messenger-search">
+          <span class="material-symbols-outlined">search</span>
+          <input id="diarySearch" type="search" placeholder="Поиск по записям и тегам">
+        </label>
+        <div class="diary-tabs" role="tablist" aria-label="Фильтр дневника">
+          <button class="active" type="button" data-diary-filter="all">Все</button>
+          <button type="button" data-diary-filter="visible">Открытые</button>
+          <button type="button" data-diary-filter="capsules">Капсулы</button>
+        </div>
+      </div>
+
+      <button id="newDiaryEntryBtn" class="text-btn primary diary-new-btn" type="button">
+        <span class="material-symbols-outlined">add</span>
+        Новая запись
+      </button>
+
+      <div id="diaryEntryList" class="diary-entry-list"></div>
+
+      <nav class="diary-side-links">
+        <a class="text-btn" href="./account.html"><span class="material-symbols-outlined">person</span>Кабинет</a>
+        <a class="text-btn" href="./index.html"><span class="material-symbols-outlined">home</span>Главная</a>
+      </nav>
+    </aside>
+
+    <section class="diary-workspace">
+      <header class="diary-hero">
+        <div>
+          <p class="workspace-kicker">Личный архив</p>
+          <h1 id="diaryTitle">Тихое место для мыслей</h1>
+          <p id="diarySubtitle">Записи видны только вам. Можно вести обычный дневник или сделать капсулу времени.</p>
+        </div>
+        <button id="diaryThemeBtn" class="icon-btn" type="button" title="Сменить тему" aria-label="Сменить тему">
+          <span class="material-symbols-outlined">contrast</span>
+        </button>
+      </header>
+
+      <div id="diaryMessage" class="message" aria-live="polite"></div>
+
+      <section class="diary-editor-shell">
+        <form id="diaryForm" class="diary-form">
+          <div class="diary-form-grid">
+            <label class="field">
+              <span>Заголовок</span>
+              <input id="diaryEntryTitle" type="text" placeholder="Например: что было сегодня">
+            </label>
+            <label class="field">
+              <span>Настроение</span>
+              <select id="diaryMood">
+                <option value="calm">Спокойно</option>
+                <option value="happy">Радостно</option>
+                <option value="tired">Усталость</option>
+                <option value="anxious">Тревожно</option>
+                <option value="angry">Злюсь</option>
+                <option value="inspired">Вдохновение</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Запись</span>
+            <textarea id="diaryBody" rows="12" placeholder="Можно писать коротко. Можно сумбурно. Это место не требует красивых формулировок."></textarea>
+          </label>
+
+          <div class="diary-form-grid">
+            <label class="field">
+              <span>Теги</span>
+              <input id="diaryTags" type="text" placeholder="работа, идеи, сон">
+            </label>
+            <label class="field">
+              <span>Показать после даты</span>
+              <input id="diaryRevealAt" type="date">
+            </label>
+          </div>
+
+          <div class="diary-prompts" aria-label="Подсказки для записи">
+            <button type="button" data-prompt="Что сегодня получилось?">Что получилось?</button>
+            <button type="button" data-prompt="Что меня сейчас тревожит?">Что тревожит?</button>
+            <button type="button" data-prompt="Что я хочу оставить в этом дне?">Что оставить?</button>
+            <button type="button" data-prompt="Что я хочу сказать себе в будущем?">В будущее</button>
+          </div>
+
+          <div class="diary-actions">
+            <button id="saveDiaryEntryBtn" class="text-btn primary" type="submit">
+              <span class="material-symbols-outlined">save</span>
+              Сохранить
+            </button>
+            <button id="deleteDiaryEntryBtn" class="text-btn danger" type="button" hidden>
+              <span class="material-symbols-outlined">delete</span>
+              Удалить
+            </button>
+          </div>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="./js/diary.js"></script>
+</body>
+</html>

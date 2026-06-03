@@ -153,6 +153,19 @@ function formatDateTime(value) {
   } catch { return ''; }
 }
 
+function scrollMessagesToBottom() {
+  window.requestAnimationFrame(() => {
+    els.messages.scrollTop = els.messages.scrollHeight;
+    window.setTimeout(() => {
+      els.messages.scrollTop = els.messages.scrollHeight;
+    }, 80);
+  });
+}
+
+function closeActionMenu() {
+  document.querySelector('.chat-menu')?.removeAttribute('open');
+}
+
 async function requireSession() {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
@@ -345,7 +358,7 @@ async function loadMessages() {
     }).join('');
   }
 
-  els.messages.scrollTop = els.messages.scrollHeight;
+  scrollMessagesToBottom();
   await Promise.allSettled([
     supabase.rpc('mark_conversation_read', { p_conversation_id: state.activeConversationId }),
     loadUsers(),
@@ -472,10 +485,19 @@ function bindEvents() {
     }
   });
   els.backBtn.addEventListener('click', () => setMobileView('list'));
-  els.openAliasBtn.addEventListener('click', () => openModal(els.aliasModal));
+  els.openAliasBtn.addEventListener('click', () => {
+    closeActionMenu();
+    openModal(els.aliasModal);
+  });
   els.saveAliasBtn.addEventListener('click', saveAlias);
-  els.removeBtn.addEventListener('click', removeContact);
-  els.clearBtn.addEventListener('click', clearChat);
+  els.removeBtn.addEventListener('click', () => {
+    closeActionMenu();
+    removeContact();
+  });
+  els.clearBtn.addEventListener('click', () => {
+    closeActionMenu();
+    clearChat();
+  });
   document.querySelectorAll('[data-close]').forEach((el) => {
     el.addEventListener('click', () => closeModal(document.getElementById(el.dataset.close)));
   });

@@ -30,8 +30,21 @@ create table if not exists public.quote_collection_items (
   primary key (collection_id, quote_id)
 );
 
+create table if not exists public.diary_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  title text not null default 'Без заголовка',
+  body text not null default '',
+  mood text not null default 'calm',
+  tags text[] not null default '{}',
+  reveal_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.quote_collections enable row level security;
 alter table public.quote_collection_items enable row level security;
+alter table public.diary_entries enable row level security;
 
 create or replace function public.is_admin(uid uuid default auth.uid())
 returns boolean
@@ -234,6 +247,28 @@ using (
     where c.id = collection_id and c.user_id = auth.uid()
   )
 );
+
+drop policy if exists "diary read own" on public.diary_entries;
+drop policy if exists "diary insert own" on public.diary_entries;
+drop policy if exists "diary update own" on public.diary_entries;
+drop policy if exists "diary delete own" on public.diary_entries;
+
+create policy "diary read own"
+on public.diary_entries for select
+using (auth.uid() = user_id);
+
+create policy "diary insert own"
+on public.diary_entries for insert
+with check (auth.uid() = user_id);
+
+create policy "diary update own"
+on public.diary_entries for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "diary delete own"
+on public.diary_entries for delete
+using (auth.uid() = user_id);
 
 
 create or replace function public.admin_quote_vote_details(p_quote_id uuid, p_vote text)

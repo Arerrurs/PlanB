@@ -32,6 +32,11 @@ const els = {
   collectionTitle: $('collectionTitle'),
   collectionDescription: $('collectionDescription'),
   collectionsList: $('collectionsList'),
+  collectionReader: $('collectionReader'),
+  collectionReaderTitle: $('collectionReaderTitle'),
+  collectionReaderMeta: $('collectionReaderMeta'),
+  collectionQuotesList: $('collectionQuotesList'),
+  closeCollectionReaderBtn: $('closeCollectionReaderBtn'),
   suggestionForm: $('accountSuggestionForm'),
   suggestionText: $('accountSuggestionText'),
   suggestionsList: $('accountSuggestionsList'),
@@ -129,6 +134,10 @@ function statusClass(status) {
   return 'status-pill pending';
 }
 
+function quoteLink(id) {
+  return `./index.html?quote=${encodeURIComponent(id)}`;
+}
+
 async function requireSession() {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
@@ -208,13 +217,71 @@ async function loadCollections() {
         <div>
           <h3>${escapeHtml(item.title)}</h3>
           <p>${escapeHtml(item.description || 'Без описания')}</p>
-          <small>${count} цитат</small>
+          <small>${count} цитат · нажмите, чтобы открыть</small>
         </div>
         <button class="icon-btn" type="button" data-delete-collection="${item.id}" title="Удалить" aria-label="Удалить коллекцию">
           <span class="material-symbols-outlined">delete</span>
         </button>
       </article>`;
   }).join('');
+}
+
+async function openCollection(id) {
+  if (!id || !els.collectionReader) return;
+  const { data: collection, error: collectionError } = await supabase
+    .from('quote_collections')
+    .select('id,title,description')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (collectionError) return setMessage(normalizeError(collectionError), 'error');
+  if (!collection) return;
+
+  const { data, error } = await supabase
+    .from('quote_collection_items')
+    .select('quote_id,created_at,quotes(id,text)')
+    .eq('collection_id', id)
+    .order('created_at', { ascending: false });
+  if (error) return setMessage(normalizeError(error), 'error');
+
+  const items = data || [];
+  els.collectionReader.hidden = false;
+  els.collectionReaderTitle.textContent = collection.title;
+  els.collectionReaderMeta.textContent = collection.description || `${items.length} цитат в подборке`;
+
+  if (!items.length) {
+    els.collectionQuotesList.innerHTML = `
+      <div class="empty-panel">
+        В этой коллекции пока нет цитат. Откройте главную, нажмите значок закладки на карточке и добавьте цитату сюда.
+      </div>`;
+  } else {
+    els.collectionQuotesList.innerHTML = items.map((item) => {
+      const quote = Array.isArray(item.quotes) ? item.quotes[0] : item.quotes;
+      return `
+        <article class="collection-quote">
+          <p>${escapeHtml(quote?.text || 'Цитата недоступна')}</p>
+          <div class="collection-quote-actions">
+            ${quote?.id ? `<a class="text-btn" href="${quoteLink(quote.id)}"><span class="material-symbols-outlined">open_in_new</span>Открыть</a>` : ''}
+            <button class="text-btn danger" type="button" data-remove-quote="${escapeHtml(item.quote_id)}" data-collection="${escapeHtml(id)}">
+              <span class="material-symbols-outlined">bookmark_remove</span>Убрать
+            </button>
+          </div>
+        </article>`;
+    }).join('');
+  }
+  els.collectionReader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function removeQuoteFromCollection(collectionId, quoteId) {
+  if (!collectionId || !quoteId) return;
+  const { error } = await supabase
+    .from('quote_collection_items')
+    .delete()
+    .eq('collection_id', collectionId)
+    .eq('quote_id', quoteId);
+  if (error) return setMessage(normalizeError(error), 'error');
+  await Promise.all([openCollection(collectionId), loadCollections()]);
+  toast('Цитата убрана из коллекции.', 'success');
 }
 
 async function loadSuggestions() {
@@ -341,7 +408,17 @@ function bindEvents() {
   els.collectionForm.addEventListener('submit', createCollection);
   els.collectionsList.addEventListener('click', (event) => {
     const button = event.target.closest('[data-delete-collection]');
-    if (button) deleteCollection(button.dataset.deleteCollection);
+    if (button) {
+      deleteCollection(button.dataset.deleteCollection);
+      return;
+    }
+    const card = event.target.closest('[data-collection-id]');
+    if (card) openCollection(card.dataset.collectionId);
+  });
+  els.closeCollectionReaderBtn?.addEventListener('click', () => { els.collectionReader.hidden = true; });
+  els.collectionQuotesList?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-remove-quote]');
+    if (button) removeQuoteFromCollection(button.dataset.collection, button.dataset.removeQuote);
   });
   els.suggestionForm.addEventListener('submit', sendSuggestion);
   [

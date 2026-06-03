@@ -20,6 +20,7 @@
       </a>
       <nav class="workspace-nav" aria-label="Кабинет">
         <a class="active" href="#overview"><span class="material-symbols-outlined">dashboard</span>Обзор</a>
+        <a href="./diary.html"><span class="material-symbols-outlined">edit_note</span>Дневник</a>
         <a href="#collections"><span class="material-symbols-outlined">bookmarks</span>Коллекции</a>
         <a href="#suggestions"><span class="material-symbols-outlined">rate_review</span>Предложенные</a>
         <a href="./chat.html"><span class="material-symbols-outlined">forum</span>Мессенджер <span id="accountChatBadge" class="chat-badge" hidden>0</span></a>
@@ -48,7 +49,7 @@
 
       <div id="accountMessage" class="message" aria-live="polite"></div>
 
-      <section class="dashboard-grid">
+      <section class="dashboard-grid dashboard-grid--compact">
         <article class="dashboard-card">
           <span class="material-symbols-outlined">thumb_up</span>
           <div>
@@ -86,7 +87,7 @@
             <p>Эти переключатели управляют тем, как работает главная карточка.</p>
           </div>
         </div>
-        <div class="toggle-grid">
+        <div class="toggle-grid toggle-grid--polished">
           <label class="toggle-card">
             <input id="accountDisableTimer" type="checkbox">
             <span class="toggle-card-icon material-symbols-outlined">timer_off</span>
@@ -121,9 +122,25 @@
         <div class="section-head">
           <div>
             <h2>Профиль</h2>
-            <p>Логин, почта и акцентные цвета.</p>
+            <p>Здесь меняется имя в интерфейсе, почта для входа, пароль и цвета сайта. Если поле почты или пароля оставить пустым, оно не изменится.</p>
           </div>
           <button id="saveAccountSettingsBtn" class="text-btn primary" type="button">Сохранить</button>
+        </div>
+        <div class="profile-hint-grid">
+          <div class="profile-hint">
+            <span class="material-symbols-outlined">badge</span>
+            <div>
+              <strong>Логин</strong>
+              <p>Короткое имя для кабинета и чата. Можно латиницу, цифры, точку, тире и подчёркивание.</p>
+            </div>
+          </div>
+          <div class="profile-hint">
+            <span class="material-symbols-outlined">palette</span>
+            <div>
+              <strong>Цвета</strong>
+              <p>Акцент применяется к кнопкам, бейджам и подсветке в светлой и тёмной теме.</p>
+            </div>
+          </div>
         </div>
         <form id="accountSettingsForm" class="account-settings-grid">
           <label class="field">
@@ -162,6 +179,19 @@
           <button class="text-btn primary" type="submit">Создать</button>
         </form>
         <div id="collectionsList" class="collection-grid"></div>
+        <section id="collectionReader" class="collection-reader" hidden>
+          <div class="collection-reader-head">
+            <div>
+              <p class="workspace-kicker">Коллекция</p>
+              <h3 id="collectionReaderTitle">—</h3>
+              <p id="collectionReaderMeta"></p>
+            </div>
+            <button id="closeCollectionReaderBtn" class="icon-btn" type="button" aria-label="Закрыть коллекцию" title="Закрыть">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div id="collectionQuotesList" class="collection-quotes-list"></div>
+        </section>
       </section>
 
       <section class="workspace-section" id="suggestions">
